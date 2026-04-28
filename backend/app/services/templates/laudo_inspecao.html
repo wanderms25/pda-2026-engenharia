@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Laudo de Inspeção — {{ projeto.nome }}</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 2.5cm 2cm 2cm 2cm;
+      @bottom-center {
+        content: "Página " counter(page) " de " counter(pages);
+        font-size: 9pt; color: #666;
+      }
+      @top-right {
+        content: "{{ projeto.nome }} — Laudo de Inspeção";
+        font-size: 9pt; color: #666;
+      }
+    }
+    @page :first { margin: 0; @top-right { content: ""; } @bottom-center { content: ""; } }
+
+    * { box-sizing: border-box; }
+    body {
+      font-family: "Liberation Sans", "DejaVu Sans", Arial, sans-serif;
+      font-size: 10pt; line-height: 1.5; color: #222;
+    }
+
+    /* CAPA NEUTRA */
+    .capa {
+      page: first; page-break-after: always;
+      height: 297mm; width: 210mm;
+      background: white;
+      color: #1a1a1a;
+      padding: 3cm 2.5cm;
+      display: flex; flex-direction: column; justify-content: space-between;
+      border-top: 8pt solid #1a1a1a;
+    }
+    .capa-logo {
+      max-width: 6cm;
+      max-height: 3cm;
+      margin-bottom: 1.5cm;
+    }
+    .capa-logo-placeholder {
+      height: 1cm;
+      margin-bottom: 1.5cm;
+    }
+    .capa-header {
+      text-align: right; font-size: 9pt; color: #666;
+      border-bottom: 0.5pt solid #ccc; padding-bottom: 0.3cm;
+    }
+    .capa-titulo {
+      font-size: 32pt; font-weight: bold; line-height: 1.2; margin-top: 2cm;
+      color: #1a1a1a; letter-spacing: -0.5pt;
+    }
+    .capa-subtitulo { font-size: 13pt; color: #555; margin-top: 0.5cm; }
+    .capa-projeto {
+      margin-top: 2.5cm; padding: 0.8cm 0;
+      border-top: 2pt solid #1a1a1a;
+      border-bottom: 0.5pt solid #ccc;
+    }
+    .capa-projeto-label {
+      font-size: 8pt; text-transform: uppercase;
+      color: #888; letter-spacing: 1pt;
+    }
+    .capa-projeto-nome { font-size: 18pt; font-weight: bold; margin-top: 0.2cm; color: #1a1a1a; }
+    .capa-projeto-cliente { font-size: 11pt; margin-top: 0.3cm; color: #555; }
+    .capa-conformidade {
+      font-size: 13pt; margin-top: 0.8cm; font-weight: bold; color: #1a1a1a;
+    }
+    .capa-responsavel {
+      margin-top: 1.5cm; padding: 0.5cm 0; font-size: 10pt;
+    }
+    .capa-responsavel-label {
+      font-size: 8pt; text-transform: uppercase; color: #888;
+      letter-spacing: 1pt; margin-bottom: 0.2cm;
+    }
+    .capa-responsavel-nome { font-weight: bold; color: #1a1a1a; }
+    .capa-footer {
+      font-size: 8pt; color: #666;
+      border-top: 0.5pt solid #ccc; padding-top: 0.4cm; line-height: 1.4;
+    }
+
+    h1 {
+      font-size: 18pt; color: #1a1a1a;
+      border-bottom: 2pt solid #1a1a1a; padding-bottom: 0.2cm;
+      margin-top: 1.2cm; page-break-after: avoid;
+    }
+    h2 { font-size: 13pt; color: #333; margin-top: 0.8cm; page-break-after: avoid; }
+    h3 { font-size: 11pt; margin-top: 0.5cm; page-break-after: avoid; }
+
+    table {
+      width: 100%; border-collapse: collapse;
+      margin: 0.5cm 0; font-size: 9pt;
+    }
+    th, td { border: 0.5pt solid #ccc; padding: 4pt 6pt; text-align: left; }
+    th { background: #f3f4f6; font-weight: bold; color: #1a1a1a; }
+
+    .status-conforme {
+      display: inline-block; padding: 2pt 8pt;
+      background: #dcfce7; color: #166534;
+      border-radius: 12pt; font-size: 9pt; font-weight: bold;
+    }
+    .status-nao-conforme {
+      display: inline-block; padding: 2pt 8pt;
+      background: #fee2e2; color: #991b1b;
+      border-radius: 12pt; font-size: 9pt; font-weight: bold;
+    }
+    .status-na {
+      display: inline-block; padding: 2pt 8pt;
+      background: #f3f4f6; color: #4b5563;
+      border-radius: 12pt; font-size: 9pt; font-weight: bold;
+    }
+
+    .alert-box {
+      padding: 0.5cm; margin: 0.5cm 0;
+      border-radius: 4pt; border-left: 4pt solid;
+    }
+    .alert-success { background: #f0fdf4; border-color: #16a34a; color: #166534; }
+    .alert-danger  { background: #fef2f2; border-color: #dc2626; color: #991b1b; }
+    .alert-warning { background: #fffbeb; border-color: #f59e0b; color: #92400e; }
+    .alert-info    { background: #f9fafb; border-color: #6b7280; color: #374151; }
+
+    /* Meta-info em tabela, sem cor */
+    .meta-info {
+      margin: 0.4cm 0;
+      font-size: 10pt;
+    }
+    .meta-info table {
+      width: 100%; border: none;
+      border-top: 0.5pt solid #1a1a1a;
+      border-bottom: 0.5pt solid #1a1a1a;
+      margin: 0;
+    }
+    .meta-info td {
+      border: none; padding: 6pt 0;
+      border-bottom: 0.5pt dotted #ccc;
+    }
+    .meta-info tr:last-child td { border-bottom: none; }
+    .meta-info td.label {
+      width: 4cm; font-weight: bold; color: #555;
+      text-transform: uppercase; font-size: 8pt; letter-spacing: 0.5pt;
+    }
+    .meta-info td.value { color: #1a1a1a; }
+
+    .checklist-item {
+      margin: 0.3cm 0; padding: 0.3cm;
+      border: 0.5pt solid #d1d5db; border-radius: 3pt;
+      page-break-inside: avoid;
+    }
+    .checklist-item-codigo {
+      font-family: "DejaVu Sans Mono", monospace;
+      font-size: 8pt; color: #6b7280;
+    }
+    .checklist-item-desc { font-weight: bold; font-size: 9pt; margin: 2pt 0; }
+    .checklist-item-ref { font-size: 8pt; color: #6b7280; font-style: italic; }
+
+    .acao-corretiva {
+      margin: 0.3cm 0; padding: 0.4cm;
+      background: #fef2f2; border-left: 3pt solid #dc2626;
+      border-radius: 2pt; page-break-inside: avoid;
+    }
+    .acao-corretiva.curto-prazo { background: #fffbeb; border-color: #f59e0b; }
+    .acao-corretiva.preventivo { background: #f9fafb; border-color: #6b7280; }
+    .acao-codigo { font-family: "DejaVu Sans Mono", monospace; font-size: 8pt; color: #6b7280; }
+    .acao-titulo { font-weight: bold; font-size: 10pt; margin: 2pt 0; }
+    .acao-desc { font-size: 9pt; margin: 3pt 0; }
+    .acao-meta { font-size: 8pt; color: #6b7280; margin-top: 3pt; }
+
+    .foto-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 0.5cm;
+      margin: 0.5cm 0;
+    }
+    .foto-card {
+      border: 1pt solid #d1d5db; border-radius: 4pt;
+      padding: 0.2cm; background: white;
+      page-break-inside: avoid;
+    }
+    .foto-card img {
+      width: 100%; height: auto; max-height: 6cm;
+      object-fit: cover; border-radius: 2pt;
+    }
+    .foto-legenda {
+      font-size: 8pt; color: #4b5563;
+      padding: 0.2cm 0 0 0;
+    }
+    .foto-legenda-codigo {
+      font-family: "DejaVu Sans Mono", monospace;
+      font-weight: bold; color: #1a1a1a;
+    }
+
+    /* Bloco de assinatura — centralizado */
+    .bloco-assinatura {
+      margin-top: 3cm;
+      text-align: center;
+      page-break-inside: avoid;
+    }
+    .bloco-assinatura .linha {
+      width: 10cm; margin: 0 auto;
+      border-top: 0.75pt solid #1a1a1a;
+      padding-top: 0.25cm;
+    }
+    .bloco-assinatura .nome {
+      font-weight: bold; font-size: 11pt; color: #1a1a1a;
+    }
+    .bloco-assinatura .registro {
+      font-size: 9pt; color: #555; margin-top: 2pt;
+    }
+  </style>
+</head>
+<body>
+
+<!-- =========================================================== CAPA -->
+<div class="capa">
+  {% if logo_data_uri %}
+  <img src="{{ logo_data_uri }}" alt="Logo" class="capa-logo">
+  {% else %}
+  <div class="capa-logo-placeholder"></div>
+  {% endif %}
+
+  <div class="capa-header">
+    {{ data_inspecao }} &nbsp;|&nbsp; Documento nº {{ numero_documento }}
+  </div>
+
+  <div>
+    <div class="capa-titulo">LAUDO DE<br>INSPEÇÃO DE SPDA</div>
+    <div class="capa-subtitulo">
+      ABNT NBR 5419-3 e -4:2026 — Danos físicos e Sistemas internos
+    </div>
+
+    <div class="capa-projeto">
+      <div class="capa-projeto-label">Estrutura inspecionada</div>
+      <div class="capa-projeto-nome">{{ projeto.nome }}</div>
+      <div class="capa-projeto-cliente">
+        {% if projeto.cliente %}{{ projeto.cliente }}<br>{% endif %}
+        {% if projeto.endereco %}{{ projeto.endereco }}{% endif %}
+      </div>
+      <div class="capa-conformidade">
+        Conformidade: {{ "%.0f"|format(resultado.percentual_conformidade) }}%
+        ({{ resultado.conformes }}/{{ resultado.conformes + resultado.nao_conformes }} itens)
+      </div>
+    </div>
+
+    <div class="capa-responsavel">
+      <div class="capa-responsavel-label">Inspetor responsável</div>
+      <div class="capa-responsavel-nome">{{ responsavel.nome }}</div>
+      <div>{{ responsavel.registro }}</div>
+      {% if responsavel.art and responsavel.art != "________" %}
+      <div>ART nº {{ responsavel.art }}</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="capa-footer">
+    Inspeção realizada conforme NBR 5419-3:2026 (Seção 7) e NBR 5419-4:2026 (Seção 9.2).
+    As não-conformidades identificadas são apresentadas na Seção 5 com plano
+    de ação corretiva e referência normativa específica.
+  </div>
+</div>
+
+<!-- =========================================================== 1. OBJETIVO -->
+<h1>1. Objetivo</h1>
+<p>
+  Este laudo apresenta o resultado da inspeção do Sistema de Proteção contra
+  Descargas Atmosféricas (SPDA) e das Medidas de Proteção contra Surtos (MPS)
+  instalados na estrutura <strong>{{ projeto.nome }}</strong>, elaborado em
+  conformidade estrita com a <strong>ABNT NBR 5419-3:2026</strong> (Seção 7 —
+  Inspeção, manutenção e documentação) e a <strong>ABNT NBR 5419-4:2026</strong>
+  (Seção 9 — Inspeção, manutenção e documentação das MPS).
+</p>
+
+<div class="alert-box alert-info">
+  <strong>Nota normativa:</strong> Conforme NBR 5419-3:2026, item 7.1.4,
+  a medição de resistência de aterramento não é mais necessária para a
+  verificação da eficácia do SPDA. O foco desta inspeção é a integridade
+  física dos componentes, continuidade elétrica e conformidade com o projeto.
+</div>
+
+<!-- =========================================================== 2. DADOS DA INSPEÇÃO -->
+<h1>2. Dados da inspeção</h1>
+<div class="meta-info">
+  <table>
+    {% if projeto.cliente %}
+    <tr>
+      <td class="label">Cliente</td>
+      <td class="value">{{ projeto.cliente }}</td>
+    </tr>
+    {% endif %}
+    {% if projeto.endereco %}
+    <tr>
+      <td class="label">Endereço</td>
+      <td class="value">{{ projeto.endereco }}</td>
+    </tr>
+    {% endif %}
+    <tr>
+      <td class="label">Data da inspeção</td>
+      <td class="value">{{ data_inspecao }}</td>
+    </tr>
+    <tr>
+      <td class="label">Inspetor</td>
+      <td class="value">{{ responsavel.nome }}</td>
+    </tr>
+    <tr>
+      <td class="label">Registro</td>
+      <td class="value">{{ responsavel.registro }}</td>
+    </tr>
+    {% if responsavel.art and responsavel.art != "________" %}
+    <tr>
+      <td class="label">ART nº</td>
+      <td class="value">{{ responsavel.art }}</td>
+    </tr>
+    {% endif %}
+  </table>
+</div>
+
+<!-- =========================================================== 3. RESUMO -->
+
+<!-- 2.5 Dados do SPDA e DPS instalados -->
+{% if spda_nivel != "NENHUM" or dps_nivel != "NENHUM" or perimetro_m > 0 %}
+<h1>2.5 Dados do SPDA e DPS instalados</h1>
+<table style="width:100%; border-collapse:collapse; font-size:9pt; margin-bottom:1cm;">
+  <thead>
+    <tr style="background:#f3f4f6;">
+      <th style="border:0.5pt solid #d1d5db; padding:5pt; text-align:left;">Sistema</th>
+      <th style="border:0.5pt solid #d1d5db; padding:5pt; text-align:left;">Especificação</th>
+      <th style="border:0.5pt solid #d1d5db; padding:5pt; text-align:left;">Situação</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="border:0.5pt solid #d1d5db; padding:5pt;">SPDA externo (captores + descidas)</td>
+      <td style="border:0.5pt solid #d1d5db; padding:5pt;">
+        Nível de Proteção: <strong>{{ spda_nivel }}</strong>
+        {% if num_descidas > 0 %} · {{ num_descidas }} descidas{% endif %}
+        {% if perimetro_m > 0 %} · Perímetro: {{ "%.1f"|format(perimetro_m) }} m{% endif %}
+        {% if altura_estrutura > 0 %} · Altura: {{ "%.1f"|format(altura_estrutura) }} m{% endif %}
+        {% if area_estrutura > 0 %} · Área cobertura: {{ "%.1f"|format(area_estrutura) }} m²{% endif %}
+      </td>
+      <td style="border:0.5pt solid #d1d5db; padding:5pt; color:{{ '#16a34a' if spda_nivel != 'NENHUM' else '#6b7280' }};">
+        {{ "✓ Instalado" if spda_nivel != "NENHUM" else "✗ Não instalado" }}
+      </td>
+    </tr>
+    <tr>
+      <td style="border:0.5pt solid #d1d5db; padding:5pt;">DPS coordenados (proteção de linhas)</td>
+      <td style="border:0.5pt solid #d1d5db; padding:5pt;">
+        Nível: <strong>{{ dps_nivel if dps_nivel != "NENHUM" else "—" }}</strong>
+        (NBR 5419-4:2026 §9.2 — U<sub>p</sub> + U<sub>C</sub> ≤ U<sub>W</sub>/1,2)
+      </td>
+      <td style="border:0.5pt solid #d1d5db; padding:5pt; color:{{ '#16a34a' if dps_nivel != 'NENHUM' else '#6b7280' }};">
+        {{ "✓ Instalado" if dps_nivel != "NENHUM" else "✗ Não instalado" }}
+      </td>
+    </tr>
+    <tr>
+      <td style="border:0.5pt solid #d1d5db; padding:5pt;">DPS Classe I (entrada da instalação)</td>
+      <td style="border:0.5pt solid #d1d5db; padding:5pt;">
+        Nível: <strong>{{ dps_classe_I if dps_classe_I != "NENHUM" else "—" }}</strong>
+      </td>
+      <td style="border:0.5pt solid #d1d5db; padding:5pt; color:{{ '#16a34a' if dps_classe_I != 'NENHUM' else '#6b7280' }};">
+        {{ "✓ Instalado" if dps_classe_I != "NENHUM" else "✗ Não instalado" }}
+      </td>
+    </tr>
+  </tbody>
+</table>
+{% endif %}
+
+<h1>3. Resumo do resultado</h1>
+
+{% if resultado.ja_conforme_100 %}
+<div class="alert-box alert-success">
+  <strong>Estrutura 100% conforme com a NBR 5419:2026 (Partes 3 e 4).</strong><br>
+  Todos os itens do checklist normativo foram avaliados e aprovados. Nenhuma
+  ação corretiva é necessária.
+</div>
+{% else %}
+<div class="alert-box alert-warning">
+  <strong>Foram identificadas {{ resultado.nao_conformes }} não-conformidade(s).</strong><br>
+  Esta inspeção gerou {{ resultado.acoes|length }} ação(ões) corretiva(s)
+  apresentadas na Seção 5 deste laudo, ordenadas por prioridade conforme
+  NBR 5419-3:2026, 7.4.2.
+</div>
+{% endif %}
+
+<table>
+  <tr><th>Indicador</th><th>Valor</th></tr>
+  <tr><td>Itens avaliados</td><td>{{ resultado.conformes + resultado.nao_conformes + resultado.na }}</td></tr>
+  <tr><td>Conformes</td><td>{{ resultado.conformes }}</td></tr>
+  <tr><td>Não conformes</td><td>{{ resultado.nao_conformes }}</td></tr>
+  <tr><td>Não aplicáveis (N/A)</td><td>{{ resultado.na }}</td></tr>
+  <tr><td>Percentual de conformidade</td>
+      <td><strong>{{ "%.1f"|format(resultado.percentual_conformidade) }}%</strong></td></tr>
+</table>
+
+<!-- =========================================================== 4. CHECKLIST -->
+<h1>4. Checklist de inspeção</h1>
+<p>Resultado item-a-item da avaliação, agrupado por categoria.</p>
+
+{% for categoria, itens in checklist_agrupado.items() %}
+<h2>{{ categoria_labels[categoria] if categoria_labels.get(categoria) else categoria }}</h2>
+{% for item in itens %}
+<div class="checklist-item">
+  <div style="display: flex; justify-content: space-between; align-items: start;">
+    <div style="flex: 1;">
+      <span class="checklist-item-codigo">{{ item.codigo }}</span>
+      <div class="checklist-item-desc">{{ item.descricao }}</div>
+      <div class="checklist-item-ref">{{ item.norma }} — {{ item.referencia_normativa }}</div>
+    </div>
+    <div>
+      {% set status = respostas.get(item.codigo, "N/A") %}
+      {% if status == "CONFORME" %}
+        <span class="status-conforme">✓ CONFORME</span>
+      {% elif status == "NAO_CONFORME" %}
+        <span class="status-nao-conforme">✗ NÃO CONFORME</span>
+      {% else %}
+        <span class="status-na">N/A</span>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endfor %}
+{% endfor %}
+
+<!-- =========================================================== 5. PLANO DE REMEDIAÇÃO -->
+{% if not resultado.ja_conforme_100 %}
+<h1>5. Plano de ação corretiva para 100% de conformidade</h1>
+<p>
+  As ações abaixo foram geradas automaticamente pelo sistema, referenciando
+  diretamente os itens da ABNT NBR 5419:2026. Estão ordenadas por prioridade
+  conforme 7.4.2 da Parte 3: do imediato ao preventivo.
+</p>
+
+{% if acoes_imediatas %}
+<h2>⚠ Ações IMEDIATAS</h2>
+<p><em>Corrigir antes de liberar a instalação — compromete segurança à vida ou eficácia do SPDA.</em></p>
+{% for acao in acoes_imediatas %}
+<div class="acao-corretiva">
+  <div class="acao-codigo">{{ acao.codigo_item }}</div>
+  <div class="acao-titulo">{{ acao.descricao_nao_conformidade }}</div>
+  <div class="acao-desc"><strong>Ação:</strong> {{ acao.acao_recomendada }}</div>
+  <div class="acao-meta">
+    📋 {{ acao.referencia_norma }} &nbsp;&nbsp;|&nbsp;&nbsp;
+    ⏰ Prazo: {{ acao.prazo }} &nbsp;&nbsp;|&nbsp;&nbsp;
+    💰 Custo: {{ acao.custo_relativo }}
+  </div>
+</div>
+{% endfor %}
+{% endif %}
+
+{% if acoes_curto_prazo %}
+<h2>Ações de CURTO PRAZO</h2>
+<p><em>Corrigir em até 30 dias — impacto significativo na conformidade.</em></p>
+{% for acao in acoes_curto_prazo %}
+<div class="acao-corretiva curto-prazo">
+  <div class="acao-codigo">{{ acao.codigo_item }}</div>
+  <div class="acao-titulo">{{ acao.descricao_nao_conformidade }}</div>
+  <div class="acao-desc"><strong>Ação:</strong> {{ acao.acao_recomendada }}</div>
+  <div class="acao-meta">
+    📋 {{ acao.referencia_norma }} &nbsp;&nbsp;|&nbsp;&nbsp;
+    ⏰ Prazo: {{ acao.prazo }} &nbsp;&nbsp;|&nbsp;&nbsp;
+    💰 Custo: {{ acao.custo_relativo }}
+  </div>
+</div>
+{% endfor %}
+{% endif %}
+
+{% if acoes_preventivas %}
+<h2>Ações PREVENTIVAS</h2>
+<p><em>Incluir na próxima manutenção programada.</em></p>
+{% for acao in acoes_preventivas %}
+<div class="acao-corretiva preventivo">
+  <div class="acao-codigo">{{ acao.codigo_item }}</div>
+  <div class="acao-titulo">{{ acao.descricao_nao_conformidade }}</div>
+  <div class="acao-desc"><strong>Ação:</strong> {{ acao.acao_recomendada }}</div>
+  <div class="acao-meta">
+    📋 {{ acao.referencia_norma }} &nbsp;&nbsp;|&nbsp;&nbsp;
+    ⏰ Prazo: {{ acao.prazo }} &nbsp;&nbsp;|&nbsp;&nbsp;
+    💰 Custo: {{ acao.custo_relativo }}
+  </div>
+</div>
+{% endfor %}
+{% endif %}
+{% endif %}
+
+<!-- =========================================================== 6. ANEXO FOTOGRÁFICO -->
+{% if fotos %}
+<h1>6. Anexo fotográfico</h1>
+<p>
+  Evidências fotográficas coletadas durante a inspeção, agrupadas por item do
+  checklist e georreferenciadas quando disponível.
+</p>
+
+{% for categoria, fotos_cat in fotos_por_categoria.items() %}
+<h2>{{ categoria_labels.get(categoria, categoria) }}</h2>
+<div class="foto-grid">
+  {% for foto in fotos_cat %}
+  <div class="foto-card">
+    <img src="{{ foto.data_uri }}" alt="{{ foto.codigo_item }}">
+    <div class="foto-legenda">
+      <span class="foto-legenda-codigo">{{ foto.codigo_item }}</span>
+      {% if foto.legenda %}— {{ foto.legenda }}{% endif %}
+      {% if foto.latitude and foto.longitude %}
+      <br><small>GPS: {{ "%.5f"|format(foto.latitude) }}, {{ "%.5f"|format(foto.longitude) }}</small>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endfor %}
+{% endif %}
+
+<!-- =========================================================== 7. PERIODICIDADE -->
+<h1>7. Periodicidade da próxima inspeção</h1>
+<div class="meta-info">
+  <table>
+    <tr>
+      <td class="label">Intervalo recomendado</td>
+      <td class="value">{{ proxima_inspecao_anos }} ano(s)</td>
+    </tr>
+    <tr>
+      <td class="label">Data sugerida</td>
+      <td class="value">{{ proxima_inspecao_data }}</td>
+    </tr>
+    <tr>
+      <td class="label">Base normativa</td>
+      <td class="value">NBR 5419-3:2026, item 7.3.2.f</td>
+    </tr>
+  </table>
+</div>
+<p class="footnote">
+  Conforme 7.3.2.f da NBR 5419-3:2026, o intervalo máximo entre inspeções é de:
+  <strong>1 ano</strong> para estruturas contendo áreas classificadas 0/1/20/21,
+  munição, explosivos, componentes tóxicos, atmosfera agressiva ou pertencentes
+  a serviços essenciais; <strong>3 anos</strong> para as demais estruturas.
+</p>
+
+<!-- =========================================================== 8. REFERÊNCIAS -->
+<h1>8. Referências normativas</h1>
+<ul>
+  <li>ABNT NBR 5419-1:2026 — Proteção contra descargas atmosféricas — Parte 1: Princípios gerais</li>
+  <li>ABNT NBR 5419-2:2026 — Proteção contra descargas atmosféricas — Parte 2: Análise de risco</li>
+  <li>ABNT NBR 5419-3:2026 — Proteção contra descargas atmosféricas — Parte 3: Danos físicos a estruturas e perigos à vida</li>
+  <li>ABNT NBR 5419-4:2026 — Proteção contra descargas atmosféricas — Parte 4: Sistemas elétricos e eletrônicos internos à estrutura</li>
+</ul>
+
+<!-- =========================================================== 9. RESPONSÁVEL -->
+<h1>9. Responsável técnico</h1>
+
+<div class="meta-info">
+  <table>
+    <tr>
+      <td class="label">Engenheiro(a)</td>
+      <td class="value">{{ responsavel.nome }}</td>
+    </tr>
+    <tr>
+      <td class="label">Registro</td>
+      <td class="value">{{ responsavel.registro }}</td>
+    </tr>
+    {% if responsavel.art and responsavel.art != "________" %}
+    <tr>
+      <td class="label">ART nº</td>
+      <td class="value">{{ responsavel.art }}</td>
+    </tr>
+    {% endif %}
+    <tr>
+      <td class="label">Data da inspeção</td>
+      <td class="value">{{ data_inspecao }}</td>
+    </tr>
+  </table>
+</div>
+
+<p style="font-size: 9pt; color: #555; margin-top: 0.5cm;">
+  Declaro que a inspeção foi realizada com base na ABNT NBR 5419-3:2026 (Seção 7)
+  e NBR 5419-4:2026 (Seção 9.2), e que as conclusões e recomendações apresentadas
+  são de minha inteira responsabilidade técnica.
+</p>
+
+<div class="bloco-assinatura">
+  <div class="linha">
+    <div class="nome">{{ responsavel.nome }}</div>
+    <div class="registro">
+      {{ responsavel.registro }}
+      {% if responsavel.art and responsavel.art != "________" %}
+        &nbsp;·&nbsp; ART nº {{ responsavel.art }}
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

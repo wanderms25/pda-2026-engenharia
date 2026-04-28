@@ -1,0 +1,1092 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Memorial de Cálculo — {{ projeto.nome }}</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 2.5cm 2cm 2cm 2.5cm;
+      @bottom-center {
+        content: "Página " counter(page) " de " counter(pages);
+        font-size: 8pt; color: #64748b;
+      }
+      @top-right {
+        content: "{{ projeto.nome }} — Memorial de Cálculo";
+        font-size: 8pt; color: #64748b;
+      }
+    }
+    @page :first { margin: 0; @top-right { content: ""; } @bottom-center { content: ""; } }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: "Segoe UI", "Liberation Sans", "DejaVu Sans", Arial, sans-serif;
+      font-size: 10pt;
+      line-height: 1.6;
+      color: #334155;
+      background: white;
+    }
+
+    /* ── CAPA ─────────────────────────────────────────────────── */
+    .capa {
+      page: first;
+      page-break-after: always;
+      height: 297mm; width: 210mm;
+      background: white;
+      padding: 4cm 3cm;
+      display: flex; flex-direction: column; justify-content: space-between;
+      border-left: 20pt solid #1e3a8a;
+    }
+    .capa-topo {
+      text-align: right;
+      letter-spacing: 3pt;
+      font-size: 9pt;
+      color: #94a3b8;
+      padding-bottom: 0.5cm;
+      border-bottom: 1pt solid #e2e8f0;
+      text-transform: uppercase;
+      font-weight: bold;
+    }
+    .capa-logo-area {
+      text-align: left;
+      margin-top: 2cm;
+    }
+    .capa-logo { max-width: 6cm; max-height: 3cm; }
+    
+    .capa-titulo-principal {
+      text-align: left;
+      margin-top: 3cm;
+    }
+    .capa-titulo-principal h1 {
+      font-size: 38pt;
+      font-weight: 800;
+      color: #1e3a8a;
+      line-height: 1.1;
+      letter-spacing: -1px;
+    }
+    .capa-titulo-principal h2 {
+      font-size: 16pt;
+      font-weight: 400;
+      color: #475569;
+      margin-top: 0.2cm;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+    }
+    .capa-subtitulo {
+      font-size: 11pt;
+      color: #0ea5e9;
+      text-align: left;
+      margin-top: 0.8cm;
+      font-weight: bold;
+    }
+    .capa-dados {
+      margin-top: auto;
+      background: #f8fafc;
+      padding: 1cm;
+      border-left: 4pt solid #0ea5e9;
+      border-radius: 0 8px 8px 0;
+    }
+    .capa-linha {
+      display: flex;
+      justify-content: space-between;
+      border-bottom: 1px dashed #cbd5e1;
+      padding: 0.3cm 0;
+      font-size: 9.5pt;
+    }
+    .capa-linha:last-child { border-bottom: none; }
+    .capa-linha .label { color: #64748b; text-transform: uppercase; font-size: 8pt; font-weight: bold; }
+    .capa-linha .valor { font-weight: 600; color: #0f172a; text-align: right; max-width: 60%; }
+    
+    .capa-rodape {
+      text-align: left;
+      font-size: 8pt;
+      color: #94a3b8;
+      padding-top: 1cm;
+      margin-top: 1cm;
+      border-top: 1pt solid #e2e8f0;
+    }
+
+    /* ── SUMÁRIO ──────────────────────────────────────────────── */
+    .sumario { page-break-after: always; padding: 2cm 0; }
+    .sumario h2 { 
+      font-size: 18pt; 
+      font-weight: 800; 
+      color: #1e3a8a; 
+      border-bottom: 3pt solid #0ea5e9; 
+      padding-bottom: 0.3cm; 
+      margin-bottom: 1cm; 
+      text-transform: uppercase;
+    }
+    .sumario-item { 
+      display: flex; 
+      justify-content: space-between; 
+      padding: 0.2cm 0; 
+      border-bottom: 1px solid #f1f5f9; 
+      font-size: 10.5pt; 
+      color: #334155;
+      font-weight: 500;
+    }
+    .sumario-item.level2 { 
+      padding-left: 1cm; 
+      font-size: 9.5pt; 
+      color: #64748b; 
+      font-weight: 400;
+      border-bottom: 1px dashed #f1f5f9;
+    }
+
+    /* ── CONTEÚDO ─────────────────────────────────────────────── */
+    .section { margin-bottom: 1.5cm; }
+    
+    h1.sec { 
+      font-size: 12pt; 
+      font-weight: bold; 
+      color: #ffffff; 
+      background-color: #1e3a8a;
+      padding: 0.3cm 0.5cm; 
+      margin-bottom: 0.6cm; 
+      page-break-after: avoid;
+      border-left: 6pt solid #0ea5e9;
+      border-radius: 0 4px 4px 0;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    h2.sec { 
+      font-size: 11pt; 
+      font-weight: 700; 
+      color: #1e3a8a; 
+      margin-bottom: 0.4cm; 
+      margin-top: 0.8cm; 
+      page-break-after: avoid; 
+      border-bottom: 1.5pt solid #cbd5e1;
+      padding-bottom: 0.1cm;
+    }
+    h3.sec { 
+      font-size: 10pt; 
+      font-weight: 600; 
+      color: #475569; 
+      margin-bottom: 0.3cm; 
+      margin-top: 0.5cm; 
+    }
+
+    p { margin-bottom: 0.4cm; color: #334155; text-align: justify; }
+
+    /* Code blocks / Equações com visual "Dark Mode Técnico" */
+    .code-block {
+      background: #1e293b;
+      border-left: 4pt solid #0ea5e9;
+      padding: 0.5cm;
+      margin: 0.5cm 0;
+      font-family: "Cascadia Code", "Consolas", "Liberation Mono", monospace;
+      font-size: 9pt;
+      color: #f8fafc;
+      border-radius: 4px;
+      white-space: pre-wrap;
+      line-height: 1.5;
+    }
+    .code-block strong { color: #38bdf8; }
+
+    /* NG display */
+    .ng-display {
+      text-align: center;
+      padding: 1cm;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      background: linear-gradient(to right, #f8fafc, #f1f5f9);
+      margin: 0.6cm 0;
+      box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
+    }
+    .ng-display .ng-value { font-size: 36pt; font-weight: 800; color: #1e3a8a; display: block; line-height: 1; }
+    .ng-display .ng-label { font-size: 9.5pt; color: #64748b; text-transform: uppercase; font-weight: bold; margin-top: 0.2cm; display: block; }
+
+    /* Tables */
+    table.data {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      font-size: 9pt;
+      margin: 0.5cm 0;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    table.data thead tr { background: #1e3a8a; color: white; }
+    table.data thead th { 
+      padding: 0.3cm 0.4cm; 
+      text-align: left; 
+      font-weight: 600; 
+      color: white; 
+      text-transform: uppercase; 
+      font-size: 8pt; 
+      letter-spacing: 0.5px;
+    }
+    table.data tbody tr:nth-child(even) { background: #f8fafc; }
+    table.data tbody td { 
+      padding: 0.25cm 0.4cm; 
+      border-bottom: 1px solid #e2e8f0; 
+      color: #334155; 
+    }
+    table.data tbody tr:last-child td { border-bottom: none; }
+    table.data tfoot tr { background: #f1f5f9; }
+    table.data tfoot td { padding: 0.3cm 0.4cm; font-weight: bold; color: #1e3a8a; border-top: 2px solid #cbd5e1; }
+
+    /* Gauge / resultado */
+    .resultado-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6cm; margin: 0.8cm 0; }
+    .resultado-card {
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 0.6cm;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .resultado-card::before {
+      content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 4px;
+    }
+    .resultado-card.nao-atende { background: #fef2f2; border-color: #fecaca; }
+    .resultado-card.nao-atende::before { background: #ef4444; }
+    
+    .resultado-card.atende { background: #f0fdf4; border-color: #bbf7d0; }
+    .resultado-card.atende::before { background: #22c55e; }
+
+    .resultado-card .rc-label { font-size: 9pt; font-weight: bold; color: #475569; letter-spacing: 1px; text-transform: uppercase; }
+    .resultado-card .rc-valor {
+      font-size: 22pt;
+      font-weight: 800;
+      color: #0f172a;
+      margin: 0.3cm 0;
+      font-family: "Cascadia Code", "Consolas", monospace;
+    }
+    .resultado-card .rc-status {
+      font-size: 11pt;
+      font-weight: 800;
+      padding: 0.1cm 0.3cm;
+      border-radius: 4px;
+      display: inline-block;
+    }
+    .resultado-card.nao-atende .rc-status { color: #b91c1c; background: #fee2e2; }
+    .resultado-card.atende .rc-status { color: #15803d; background: #dcfce7; }
+    .resultado-card .rc-ref { font-size: 8.5pt; color: #64748b; margin-top: 0.3cm; display: block; }
+
+    /* Barra de distribuição */
+    .dist-bar-wrap { margin: 0.3cm 0; }
+    .dist-bar-label { display: flex; justify-content: space-between; font-size: 8.5pt; margin-bottom: 3pt; color: #334155; font-weight: 600; }
+    .dist-bar-bg { background: #e2e8f0; border-radius: 4px; height: 12pt; overflow: hidden; }
+    .dist-bar-fill { height: 100%; border-radius: 4px; }
+
+    /* Zona summary */
+    .zona-box { border: 1px solid #cbd5e1; border-radius: 8px; padding: 0.8cm; margin-bottom: 0.6cm; page-break-inside: avoid; background: #f8fafc; }
+    .zona-box h3 { font-size: 11pt; color: #1e3a8a; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.2cm; margin-bottom: 0.4cm; text-transform: uppercase; font-weight: 700; }
+
+    /* Fotos */
+    .foto-grid { display: flex; flex-wrap: wrap; gap: 0.5cm; margin: 0.5cm 0; }
+    .foto-item { text-align: center; background: white; padding: 0.2cm; border: 1px solid #e2e8f0; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+    .foto-item img { width: 5.5cm; height: 4cm; object-fit: cover; border-radius: 4px; }
+    .foto-legenda { font-size: 8pt; color: #475569; margin-top: 0.2cm; font-weight: 500; }
+
+    /* Recomendações */
+    .rec-item { display: flex; gap: 0.4cm; margin-bottom: 0.4cm; background: #f0f9ff; padding: 0.3cm 0.5cm; border-radius: 6px; border-left: 3px solid #0ea5e9; }
+    .rec-num { font-weight: 900; color: #0ea5e9; flex-shrink: 0; font-size: 12pt; line-height: 1; }
+
+    /* Conclusão destaque */
+    .conclusao-destaque { background: #fffbeb; border-left: 4px solid #f59e0b; padding: 0.5cm; margin: 0.5cm 0; font-weight: 500; color: #92400e; border-radius: 0 6px 6px 0; }
+    .conclusao-critico { background: #fef2f2; border-left: 4px solid #ef4444; padding: 0.5cm; margin: 0.5cm 0; font-weight: bold; color: #b91c1c; border-radius: 0 6px 6px 0; }
+    .conclusao-ok { background: #f0fdf4; border-left: 4px solid #22c55e; padding: 0.5cm; margin: 0.5cm 0; color: #15803d; font-weight: 500; border-radius: 0 6px 6px 0; }
+
+    /* Assinatura */
+    .assinatura {
+      margin-top: 3cm;
+      text-align: center;
+      page-break-inside: avoid;
+    }
+    .assinatura-linha {
+      width: 10cm;
+      border-top: 1px solid #334155;
+      margin: 0 auto 0.4cm;
+    }
+    .assinatura-nome { font-weight: 800; font-size: 11pt; color: #0f172a; text-transform: uppercase; }
+    .assinatura-reg { font-size: 9.5pt; color: #475569; margin-top: 2px; }
+    .assinatura-titulo { font-size: 9pt; color: #94a3b8; margin-top: 2px; }
+
+    /* Referências */
+    .ref-item { margin-bottom: 0.3cm; font-size: 9.5pt; color: #475569; padding-left: 0.5cm; position: relative; }
+    .ref-item::before { content: "▪"; position: absolute; left: 0; color: #0ea5e9; font-weight: bold; }
+    .ref-item strong { color: #1e3a8a; }
+
+    /* Status badge */
+    .badge-atende { color: #15803d; font-weight: 800; background: #dcfce7; padding: 2px 6px; border-radius: 4px; font-size: 8.5pt; text-align: center; display: inline-block;}
+    .badge-nao-atende { color: #b91c1c; font-weight: 800; background: #fee2e2; padding: 2px 6px; border-radius: 4px; font-size: 8.5pt; text-align: center; display: inline-block;}
+
+
+    /* Gráficos compactos de composição e comparação */
+    .chart-panel { margin: 0.6cm 0; padding: 0.55cm; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; page-break-inside: avoid; }
+    .chart-title { font-size: 9.5pt; font-weight: 800; color: #1e3a8a; text-transform: uppercase; margin-bottom: 0.3cm; }
+    .bar-row { margin: 0.18cm 0; }
+    .bar-label { display: flex; justify-content: space-between; gap: 8pt; font-size: 8.3pt; color: #334155; font-weight: 600; margin-bottom: 2pt; }
+    .bar-label .bar-value { font-family: "Cascadia Code", "Consolas", monospace; color: #0f172a; white-space: nowrap; }
+    .bar-track { height: 11pt; background: #e2e8f0; border-radius: 999px; overflow: hidden; }
+    .bar-fill-ok { height: 100%; background: #22c55e; }
+    .bar-fill-warn { height: 100%; background: #f59e0b; }
+    .bar-fill-bad { height: 100%; background: #ef4444; }
+    .formula-plain {
+      font-variant-ligatures: none;
+      letter-spacing: 0;
+      white-space: pre-wrap;
+    }
+
+    .formula-list { background: #0f172a; color: #f8fafc; border-left: 4pt solid #38bdf8; padding: 0.45cm; margin: 0.4cm 0; border-radius: 6px; font-family: "Cascadia Code", "Consolas", monospace; font-size: 8.2pt; line-height: 1.55; white-space: pre-wrap; }
+
+
+    /* ── Tabelas de memória em formato vertical: evita estouro lateral no PDF ── */
+    .calc-card { border: 1px solid #cbd5e1; border-radius: 8px; background: #ffffff; margin: 0.45cm 0 0.7cm; overflow: hidden; page-break-inside: avoid; }
+    .calc-card-title { background: #eff6ff; color: #1e3a8a; font-weight: 800; padding: 0.25cm 0.35cm; border-bottom: 1px solid #cbd5e1; font-size: 9.2pt; }
+    table.kv { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 8.7pt; }
+    table.kv td { padding: 0.18cm 0.32cm; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+    table.kv tr:last-child td { border-bottom: none; }
+    table.kv td:first-child { width: 54%; color: #475569; font-weight: 700; }
+    table.kv td:last-child { width: 46%; text-align: right; font-family: "Cascadia Code", "Consolas", monospace; white-space: nowrap; color: #0f172a; }
+    table.kv tr.total td { background: #f1f5f9; color: #1e3a8a; font-weight: 900; border-top: 2px solid #cbd5e1; }
+    .wide-safe { table-layout: fixed; font-size: 7.4pt !important; line-height: 1.25; }
+    .wide-safe th, .wide-safe td { padding: 0.14cm 0.16cm !important; overflow-wrap: anywhere; }
+    .wide-safe .mono, .mono { font-family: "Cascadia Code", "Consolas", monospace; white-space: nowrap; }
+
+    .page-break { page-break-before: always; }
+    .no-break { page-break-inside: avoid; }
+  </style>
+</head>
+<body>
+
+<div class="capa">
+  <div>
+    <div class="capa-topo">Conforme à ABNT NBR 5419-2:2026</div>
+    <div class="capa-logo-area">
+      {% if responsavel.logo_base64 %}
+        <img class="capa-logo" src="{{ responsavel.logo_base64 }}" alt="Logo"/>
+      {% endif %}
+    </div>
+    <div class="capa-titulo-principal">
+      <h2>Memorial de Cálculo</h2>
+      <h1>Análise de Risco</h1>
+    </div>
+    <div class="capa-subtitulo">SISTEMA E REDE DE PROTEÇÃO CONTRA DESCARGAS ATMOSFÉRICAS (SPDA)</div>
+  </div>
+
+  <div class="capa-dados">
+    {% if projeto.nome %}
+    <div class="capa-linha"><span class="label">Identificação da Obra</span><span class="valor">{{ projeto.nome }}</span></div>
+    {% endif %}
+    {% if projeto.cliente %}
+    <div class="capa-linha"><span class="label">Titular / Contratante</span><span class="valor">{{ projeto.cliente }}</span></div>
+    {% endif %}
+    {% if projeto.endereco %}
+    <div class="capa-linha"><span class="label">Local de Instalação</span><span class="valor">{{ projeto.endereco }}</span></div>
+    {% endif %}
+    {% if responsavel.nome %}
+    <div class="capa-linha"><span class="label">Autoria Técnica</span><span class="valor">{{ responsavel.nome }}</span></div>
+    {% endif %}
+    {% if responsavel.registro %}
+    <div class="capa-linha"><span class="label">Registro Profissional</span><span class="valor">{{ responsavel.registro }}</span></div>
+    {% endif %}
+    {% if responsavel.art %}
+    <div class="capa-linha"><span class="label">ART / RRT / TRT Emissão</span><span class="valor">{{ responsavel.art }}</span></div>
+    {% endif %}
+    <div class="capa-linha"><span class="label">Data de Expedição</span><span class="valor">{{ data_emissao }}</span></div>
+    <div class="capa-linha"><span class="label">Código de Rastreio</span><span class="valor">{{ numero_documento }}</span></div>
+  </div>
+
+  <div class="capa-rodape">
+    Documento elaborado estritamente conforme as diretrizes da ABNT NBR 5419-2:2026 — Análise de Risco.
+  </div>
+</div>
+
+<div class="sumario">
+  <h2>Índice Analítico</h2>
+  {% set secs = [
+    ("1","Propósito e Delimitação"),
+    ("2","Base Normativa Aplicada"),
+    ("3","Parâmetros Construtivos da Edificação"),
+    ("3.1","Coordenadas e Dimensões"),
+    ("3.2","Modelagem e Premissas de Cálculo"),
+    ("4","Variáveis Atmosféricas e Locais"),
+    ("4.1","Georreferenciamento"),
+    ("4.2","Índice Ceráunico (NG)"),
+    ("4.3","Projeções de Incidência"),
+    ("5","Matriz de Soluções Mitigadoras"),
+    ("6","Condutores e Redes Importadas"),
+    ("7","Edificações em Anexo"),
+    ("8","Superfícies de Interceptação"),
+    ("9","Estimativa de Sinistros Anuais"),
+    ("10","Mapeamento de Zonas de Segurança"),
+    ("11","Dicionário de Variáveis de Dano"),
+    ("12","Fórmula de Consolidação dos Limites"),
+    ("13","Diagnóstico Detalhado — Risco à Vida (R1)"),
+    ("14","Frequência de Danos — Memória Completa"),
+    ("15","Perda de Patrimônio Cultural — R3"),
+    ("16","Perdas Econômicas — R4"),
+    ("17","Linhas Externas — Eventos Calculados"),
+    ("18","Painel de Resultados Gerais"),
+    ("19","Parecer Técnico Conclusivo"),
+  ] %}
+  {% for num, titulo in secs %}
+    <div class="sumario-item {% if '.' in num %}level2{% endif %}">
+      <span>{{ num }}. {{ titulo }}</span>
+    </div>
+  {% endfor %}
+</div>
+
+<div class="section page-break">
+  <h1 class="sec">1. Propósito e Delimitação</h1>
+  <p>
+    O escopo deste laudo consiste em fundamentar matematicamente a Análise de Risco associada à infraestrutura, 
+    utilizando estritamente os vetores de cálculo definidos pela atualizada <strong>ABNT NBR 5419-2:2026</strong> 
+    (<em>Proteção contra descargas atmosféricas — Parte 2: Análise de risco</em>).
+  </p>
+  <p>
+    O texto normativo dita a metodologia para quantificar as prováveis perdas ocasionadas por raios (sejam impactos diretos ou 
+    irradiações magnéticas) sobre a edificação. A partir deste diagnóstico numérico, o estudo orienta a adoção de medidas 
+    mitigadoras para manter os níveis de segurança dentro da zona de tolerabilidade aceitável.
+  </p>
+  <p>A esteira de raciocínio adotada na avaliação engloba as seguintes etapas operacionais:</p>
+  <ul style="margin-left:1cm; margin-bottom:0.4cm; color: #334155;">
+    <li>Divisão e isolamento das zonas protegidas (ZPR) do edifício;</li>
+    <li>Mapeamento quantitativo das variáveis de risco para cada setor;</li>
+    <li>Soma matricial das probabilidades de perdas patrimoniais e humanas;</li>
+    <li>Confronto direto dos resultados contra os tetos de corte legais (R<sub>T</sub> e F<sub>T</sub>);</li>
+    <li>Dimensionamento do arcabouço de proteção necessário.</li>
+  </ul>
+  <h2 class="sec">1.1 Dicionário de Constantes e Matrizes</h2>
+  <div class="code-block">N<sub>G</sub> = Densidade de raios no solo (descargas/km²/ano) mapeada [Tab. F.1]
+A<sub>D</sub> = Projeção de cobertura direta da estrutura (m²) [Eq. A.1]
+A<sub>M</sub> = Perímetro de influência magnética (m²)
+C<sub>D</sub> = Multiplicador de vizinhança topográfica (adim.) [Tab. A.1]
+N<sub>D</sub> = Expectativa anual de incidências diretas (1/ano) [Eq. A.3]
+N<sub>M</sub> = Expectativa anual de descargas orbitais (1/ano) [Eq. A.5]
+N<sub>L</sub> = Choques transferidos pelas linhas (1/ano) [Eq. A.7]
+N<sub>I</sub> = Induções por quedas próximas às linhas (1/ano) [Eq. A.9]
+P<sub>X</sub> = Probabilidade de dano associada ao evento perigoso [Anexo B]
+r<sub>S</sub> = Fator associado ao tipo de construção [Tab. C.7]
+R<sub>T</sub> = Risco tolerável para R1/R3 [Tab. 4]
+F<sub>T</sub> = Teto de frequência de paralisações [Seção 7 — <strong>Atualização 2026</strong>]</div>
+</div>
+
+<div class="section">
+  <h1 class="sec">2. Base Normativa Aplicada</h1>
+  <p>Toda a lógica computacional e os arranjos técnicos sugeridos baseiam-se na seguinte bibliografia padronizada:</p>
+  <div class="ref-item"><strong>ABNT NBR 5419-1:2026</strong> — Princípios gerais físicos e conceituais do sistema.</div>
+  <div class="ref-item"><strong>ABNT NBR 5419-2:2026</strong> — Gerenciamento e cálculo estrutural de riscos.</div>
+  <div class="ref-item"><strong>ABNT NBR 5419-3:2026</strong> — Salvaguarda contra colapso físico e fatalidades em humanos.</div>
+  <div class="ref-item"><strong>ABNT NBR 5419-4:2026</strong> — Blindagem de malhas e equipamentos eletroeletrônicos sensíveis.</div>
+  <div class="ref-item"><strong>Série IEC 62305 (2024)</strong> — Consenso e diretriz técnica internacional para fenômenos atmosféricos.</div>
+  <div class="ref-item"><strong>ABNT NBR 5410:2004</strong> — Práticas seguras em instalações elétricas de baixa tensão.</div>
+</div>
+
+<div class="section page-break">
+  <h1 class="sec">3. Parâmetros Construtivos da Edificação</h1>
+  <h2 class="sec">3.1 Coordenadas e Dimensões</h2>
+  <p>Os atributos arquitetônicos e físicos que definem o contorno da obra em estudo estão consolidados no quadro abaixo:</p>
+  <table class="data">
+    <thead><tr><th>Atributo</th><th>Significado Técnico</th><th>Medição Final</th><th>Origem do Dado</th></tr></thead>
+    <tbody>
+      <tr><td><strong>L</strong></td><td>Eixo Longitudinal (m)</td><td>{{ "%.1f"|format(entrada.L) }} m</td><td>Planta da Edificação</td></tr>
+      <tr><td><strong>W</strong></td><td>Eixo Transversal (m)</td><td>{{ "%.1f"|format(entrada.W) }} m</td><td>Planta da Edificação</td></tr>
+      <tr><td><strong>H</strong></td><td>Cota Máxima de Telhado (m)</td><td>{{ "%.1f"|format(entrada.H) }} m</td><td>Planta da Edificação</td></tr>
+      <tr><td><strong>H<sub>p</sub></strong></td><td>Elementos de cumeada e caixas d'água (m)</td><td>—</td><td>Inspeção Visual</td></tr>
+      <tr><td><strong>C<sub>D</sub></strong></td><td>Impacto do entorno (relevo)</td><td>{{ "%.2f"|format(entrada.CD) }}</td><td>Tabela A.1</td></tr>
+      <tr><td><strong>P<sub>B</sub></strong></td><td>Barreira de interceptação SPDA</td><td>{{ medidas.get('spda_nivel','NENHUM') if medidas else "NENHUM" }}</td><td>Tabela B.2</td></tr>
+      <tr><td><strong>r<sub>S</sub></strong></td><td>Fator associado ao tipo de construção</td><td>{{ "%.3g"|format(rs_valor|default(1.0)) }} — {{ rs_label|default("Robusta / alvenaria-concreto") }}</td><td>Tabela C.7</td></tr>
+      <tr><td><strong>L<sub>F</sub></strong></td><td>Potencial de desabamento/fogo</td><td>{{ entrada.tipo_estrutura_label or entrada.tipo_estrutura }}</td><td>Tabela C.2</td></tr>
+      <tr><td><strong>N<sub>G</sub></strong></td><td>Incidência geolocalizada</td><td>{{ "%.1f"|format(entrada.NG) }} raios/km²/ano</td><td>Tabela F.1</td></tr>
+    </tbody>
+  </table>
+
+  <h2 class="sec">3.2 Modelagem e Premissas de Cálculo</h2>
+  <p>
+    Para o dimensionamento correto das áreas de captura (A<sub>D</sub> e A<sub>M</sub>), a edificação foi abstraída 
+    geometricamente como um bloco sólido de teto plano. O raio de interceptação acompanha a sombra tridimensional gerada pela altura total do prédio.
+  </p>
+  <div class="code-block"><strong>[Eq. A.1] Sombra de Captura Direta:</strong>
+A<sub>D</sub> = L × W + 2 × (3H) × (L + W) + π × (3H)²
+A<sub>D</sub> = {{ "%.1f"|format(entrada.L) }} × {{ "%.1f"|format(entrada.W) }} + 2 × (3×{{ "%.1f"|format(entrada.H) }}) × ({{ "%.1f"|format(entrada.L) }} + {{ "%.1f"|format(entrada.W) }}) + π × (3×{{ "%.1f"|format(entrada.H) }})²
+<strong>A<sub>D</sub> = {{ "%.3f"|format(areas.AD) }} m²</strong>
+
+<strong>[Eq. A.6] Área de exposição para descargas próximas à estrutura:</strong>
+A<sub>M</sub> = 2 × 500 × (L + W) + π × 500²
+<strong>A<sub>M</sub> = {{ "%.3f"|format(areas.AM) }} m²</strong></div>
+  <p>
+    O diagnóstico topográfico (que interfere no peso de atração do local) determina o coeficiente <strong>{{ entrada.localizacao_label or entrada.localizacao }}</strong>.
+  </p>
+</div>
+
+<div class="section">
+  <h1 class="sec">4. Variáveis Atmosféricas e Locais</h1>
+  <h2 class="sec">4.1 Georreferenciamento</h2>
+  <p>
+    Considerando a implantação geográfica do projeto em <strong>{{ projeto.endereco or "Não preenchido" }}</strong>,
+    o avaliador insere o fator ambiental de C<sub>D</sub> = {{ "%.2f"|format(entrada.CD) }}
+    (caracterizando a vizinhança geomorfológica: {{ entrada.localizacao_label or entrada.localizacao }}).
+  </p>
+  
+  <h2 class="sec">4.2 Índice Ceráunico (N<sub>G</sub>)</h2>
+  <p>
+    A taxa de incidência de raios tocando o solo na região obedece à mais recente tabulação do painel meteorológico (Tabela F.1 da NBR 5419-2:2026).
+    O número base imposto aos cálculos estatísticos é:
+  </p>
+  <div class="ng-display">
+    <span class="ng-value">{{ "%.1f"|format(entrada.NG) }}</span>
+    <span class="ng-label">Densidade Média Acumulada (Raios / Km² / Ano)</span>
+  </div>
+  {% if ng_manual %}
+  <p style="margin-top:6pt; padding:6pt 8pt; background:#fff7ed; border-left:4px solid #f97316; color:#7c2d12; font-size:8.5pt;">
+    <strong>Atenção:</strong> NG informado manualmente. Para emissão normativa final, confirme e substitua pelo valor do município na Tabela F.1 do Anexo F.
+  </p>
+  {% endif %}
+
+  <h2 class="sec">4.3 Projeções de Incidência</h2>
+  <div class="code-block"><strong>[Eq. A.3] Raios Acertando a Cobertura:</strong>
+N<sub>D</sub> = N<sub>G</sub> × A<sub>D</sub> × C<sub>D</sub> × 10⁻⁶
+N<sub>D</sub> = {{ "%.2f"|format(entrada.NG) }} × {{ "%.3f"|format(areas.AD) }} × {{ "%.2f"|format(entrada.CD) }} × 10⁻⁶ = <strong>{{ "%.3e"|format(eventos.ND) }} interações/ano</strong>
+
+<strong>[Eq. A.5] Raios Caindo no Terreno Adjacente:</strong>
+N<sub>M</sub> = N<sub>G</sub> × A<sub>M</sub> × 10⁻⁶
+N<sub>M</sub> = {{ "%.2f"|format(entrada.NG) }} × {{ "%.3f"|format(areas.AM) }} × 10⁻⁶ = <strong>{{ "%.3e"|format(eventos.NM) }} interações/ano</strong></div>
+</div>
+
+<div class="section">
+  <h1 class="sec">5. Matriz de Soluções Mitigadoras</h1>
+  <p>
+    Os recursos mecânicos e elétricos de segurança instalados (ou previstos) atuam diretamente na atenuação das probabilidades de dano,
+    freando a letalidade do raio. O layout abaixo retrata as barreiras avaliadas:
+  </p>
+  {% if medidas %}
+  <table class="data">
+    <thead><tr><th>Equipamento / Estratégia</th><th>Embasamento Técnico</th><th>Configuração Aplicada</th></tr></thead>
+    <tbody>
+      <tr><td>Arranjo de Captores (P<sub>B</sub>)</td><td>Rede externa de blindagem (Tab. B.2)</td><td><strong>{{ medidas.get('spda_nivel','NENHUM') }}</strong></td></tr>
+      <tr><td>DPS Distribuídos (P<sub>SPD</sub>)</td><td>Cascatas internas de proteção (Tab. B.3)</td><td><strong>{{ medidas.get('dps_coordenados_nivel','NENHUM') }}</strong></td></tr>
+      <tr><td>DPS Principal (P<sub>EB</sub>)</td><td>Fronteira do quadro central (Tab. B.7)</td><td><strong>{{ medidas.get('dps_classe_I_entrada','NENHUM') }}</strong></td></tr>
+      <tr><td>Demarcações Visuais (P<sub>TA</sub>)</td><td>Inibição de toque/passo (Tab. B.1)</td><td>{{ "Incluído" if medidas.get('aviso_alerta') else "Não Aplicado" }}</td></tr>
+      <tr><td>Afastamento Dielétrico</td><td>Descolamento das descidas da parede (§B.3.2)</td><td>{{ "Em conformidade" if medidas.get('isolacao_eletrica') else "Padrão Ausente" }}</td></tr>
+      <tr><td>Grade de Aterramento (TAP)</td><td>Ligação equipotencial unificada</td><td>{{ "Garantido" if medidas.get('malha_equipotencializacao') else "Inexistente" }}</td></tr>
+    </tbody>
+  </table>
+  {% else %}
+  <p style="color: #b91c1c; font-weight: bold; padding: 0.5cm; background: #fef2f2; border-left: 4px solid #ef4444;">
+    Aviso Crítico: Não constam subsistemas mitigadores na planta atual. As equações foram processadas adotando o risco "bruto" da edificação exposta.
+  </p>
+  {% endif %}
+</div>
+
+<div class="section">
+  <h1 class="sec">6. Condutores e Redes Importadas</h1>
+  <p>Os dutos de energia, lógica e fibra que furam as barreiras do edifício atuam como "antenas", transportando surtos de vizinhança (S3 e S4).</p>
+  
+  <div class="code-block"><strong>Modelagem das Linhas de Utilidade:</strong>
+[Eq. A.7] N<sub>L</sub> = N<sub>G</sub> × A<sub>L</sub> × C<sub>I</sub> × C<sub>T</sub> × C<sub>E</sub> × 10⁻⁶
+[Eq. A.9] N<sub>I</sub> = N<sub>G</sub> × A<sub>I</sub> × C<sub>I</sub> × C<sub>T</sub> × C<sub>E</sub> × 10⁻⁶
+<em>Onde os polígonos são:</em> A<sub>L</sub> = 40 × L<sub>L</sub> | A<sub>I</sub> = 4000 × L<sub>L</sub></div>
+
+  {% if eventos.NL > 0 or eventos.NI > 0 %}
+  <h2 class="sec">6.1 Entradas de Concessionária / Alimentadores</h2>
+  <table class="data">
+    <thead><tr><th>Sigla de Evento</th><th style="text-align: right;">Resultado Estatístico</th></tr></thead>
+    <tbody>
+      <tr><td><strong>N<sub>L</sub></strong> (Raio caindo diretamente nos fios da rua)</td><td style="text-align: right; font-family: monospace; font-size: 10pt;">{{ "%.3e"|format(eventos.NL) }} distúrbios/ano</td></tr>
+      <tr><td><strong>N<sub>I</sub></strong> (Pulso magnético por raio perto do poste)</td><td style="text-align: right; font-family: monospace; font-size: 10pt;">{{ "%.3e"|format(eventos.NI) }} distúrbios/ano</td></tr>
+    </tbody>
+  </table>
+  {% else %}
+  <p style="color: #64748b; font-style: italic;">Não houve mapeamento de linhas expostas cruzando as divisas do projeto. Frações N<sub>L</sub> e N<sub>I</sub> computadas como nulas.</p>
+  {% endif %}
+</div>
+
+<div class="section page-break">
+  <h1 class="sec">8. Superfícies de Interceptação</h1>
+  <table class="data">
+    <thead><tr><th>Ponto de Foco</th><th>Variável de Abrangência</th><th style="text-align:right">Dimensão Computada (m²)</th></tr></thead>
+    <tbody>
+      <tr><td>Prédio Avaliado</td><td>A<sub>D</sub> (Alvo Direto)</td><td style="text-align:right;font-family:monospace; font-weight:bold;">{{ "%.1f"|format(areas.AD) }}</td></tr>
+      <tr><td>Região no Entorno</td><td>A<sub>M</sub> (Coroa Magnética)</td><td style="text-align:right;font-family:monospace; font-weight:bold;">{{ "%.1f"|format(areas.AM) }}</td></tr>
+      {% if areas.AL > 0 %}
+      <tr><td>Cabeamento Externo</td><td>A<sub>L</sub> (Rede Captadora)</td><td style="text-align:right;font-family:monospace; font-weight:bold;">{{ "%.1f"|format(areas.AL) }}</td></tr>
+      <tr><td>Zona Vizinha aos Cabos</td><td>A<sub>I</sub> (Zona de Indução)</td><td style="text-align:right;font-family:monospace; font-weight:bold;">{{ "%.1f"|format(areas.AI) }}</td></tr>
+      {% endif %}
+    </tbody>
+  </table>
+</div>
+
+<div class="section">
+  <h1 class="sec">12. Fórmula de Consolidação dos Limites</h1>
+  <p>A arquitetura do cálculo junta todas as variáveis probabilísticas de falha em dois indicadores decisivos:</p>
+  
+  <div class="code-block formula-plain" style="font-size: 10pt;"><strong>Potencial de Morte e Lesões (R1):</strong>
+R1 = RA + RB + RU + RV + RC* + RM* + RW* + RZ*
+* RC, RM, RW e RZ somente quando a falha de sistemas internos puder colocar imediatamente em risco a vida humana ou o meio ambiente.
+
+<strong>Métrica de Dano e Paralisação (F) [Revisão 2026]:</strong>
+F = FB + FC + FM + FV + FW + FZ</div>
+
+  <h2 class="sec">Limites de aceitação aplicáveis (Tab. 4 e Seção 7)</h2>
+  <table class="data">
+    <thead><tr><th>Métrica</th><th>Natureza da Consequência</th><th style="text-align:right">Barreira Numérica</th></tr></thead>
+    <tbody>
+      <tr><td><strong>R<sub>1</sub></strong></td><td>Sinistros com Vítimas Fatais ou Graves</td><td style="text-align:right;font-family:monospace; font-weight:bold; color: #b91c1c;">1,00 × 10⁻⁵</td></tr>
+      <tr><td><strong>F</strong></td><td>Frequência de danos dos sistemas internos</td><td style="text-align:right;font-family:monospace; font-weight:bold; color: #b91c1c;">{{ "%.2e"|format(limites_normativos.F|default(0.1)) }}</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="section page-break">
+  <h1 class="sec">13. Diagnóstico Detalhado — Risco à Vida (R1)</h1>
+
+  {% set r1_comps = [
+    ("Explosão Estrutural (RB)", componentes.RB, "#f97316"),
+    ("Fogo Transmitido (RV)", componentes.RV, "#eab308"),
+    ("Choque por DDP (RA)", componentes.RA, "#6366f1"),
+    ("Choque na Fiação (RU)", componentes.RU, "#8b5cf6"),
+    ("Pane LEMP Central (RC)", componentes.RC, "#22c55e"),
+    ("Onda LEMP Externa (RM)", componentes.RM, "#06b6d4"),
+    ("Surto Conduzido (RW)", componentes.RW, "#14b8a6"),
+    ("Campo Induzido (RZ)", componentes.RZ, "#94a3b8"),
+  ] %}
+  {% set r1_max = [componentes.RB, componentes.RV, componentes.RA, componentes.RU, componentes.RC, componentes.RM, componentes.RW, componentes.RZ]|max %}
+
+  <div style="margin:0.8cm 0; padding: 1cm; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
+    <div style="font-size:10pt;font-weight:700;color:#1e3a8a;margin-bottom:0.5cm;text-transform:uppercase;">Radiografia dos Agravantes de R1</div>
+    {% for label, val, cor in r1_comps %}
+    {% if val > 0 %}
+    <div class="dist-bar-wrap">
+      <div class="dist-bar-label">
+        <span>{{ label }}</span>
+        <span style="font-family:'Cascadia Code', monospace; color: #0f172a;">{{ "%.2e"|format(val) }}</span>
+      </div>
+      <div class="dist-bar-bg">
+        <div class="dist-bar-fill" style="width:{{ [val/r1_max*100,100]|min|round(0)|int }}%; background:{{ cor }};"></div>
+      </div>
+    </div>
+    {% endif %}
+    {% endfor %}
+  </div>
+
+  <h2 class="sec">Espelho de Submúltiplos (R1)</h2>
+  <table class="data">
+    <thead><tr><th>Gatilho do Evento</th><th>Manifestação do Dano</th><th style="text-align:right">Peso Calculado</th></tr></thead>
+    <tbody>
+      <tr><td>[S1] Raio no Prédio</td><td>R<sub>A</sub> (Descarga pelo chão ou paredes)</td><td style="text-align:right;font-family:monospace">{{ "%.3e"|format(componentes.RA) }}</td></tr>
+      <tr><td>[S1] Raio no Prédio</td><td>R<sub>B</sub> (Fagulhas que geram chamas)</td><td style="text-align:right;font-family:monospace">{{ "%.3e"|format(componentes.RB) }}</td></tr>
+      <tr><td>[S1] Raio no Prédio</td><td>R<sub>C</sub> (Picos que queimam aparelhos vitais)</td><td style="text-align:right;font-family:monospace">{{ "%.3e"|format(componentes.RC) }}</td></tr>
+      <tr><td>[S2] Raio no Vizinho</td><td>R<sub>M</sub> (Irradiação que interfere em CPUs)</td><td style="text-align:right;font-family:monospace">{{ "%.3e"|format(componentes.RM) }}</td></tr>
+      <tr><td>[S3] Raio na Rede Externa</td><td>R<sub>U</sub> (Choque que viaja pela tomada)</td><td style="text-align:right;font-family:monospace">{{ "%.3e"|format(componentes.RU) }}</td></tr>
+      <tr><td>[S3] Raio na Rede Externa</td><td>R<sub>V</sub> (Explosão de quadros elétricos)</td><td style="text-align:right;font-family:monospace">{{ "%.3e"|format(componentes.RV) }}</td></tr>
+      <tr><td>[S3] Raio na Rede Externa</td><td>R<sub>W</sub> (Surto severo que torra placas)</td><td style="text-align:right;font-family:monospace">{{ "%.3e"|format(componentes.RW) }}</td></tr>
+      <tr><td>[S4] Raio perto da Rede</td><td>R<sub>Z</sub> (Interferência induzida sutil)</td><td style="text-align:right;font-family:monospace">{{ "%.3e"|format(componentes.RZ) }}</td></tr>
+    </tbody>
+    <tfoot>
+      <tr><td colspan="2"><strong>ÍNDICE FINAL APURADO (R1)</strong></td><td style="text-align:right;font-family:monospace;font-size:11pt;">{{ "%.3e"|format(riscos.R1) }}</td></tr>
+    </tfoot>
+  </table>
+</div>
+
+
+<div class="section page-break">
+  <h1 class="sec">14. Frequência de Danos — Memória Completa</h1>
+  <p>
+    Esta seção apresenta a composição completa da frequência de danos calculada na API principal.
+    A frequência total é dada por:
+    <strong>F = FB + FC + FM + FV + FW + FZ</strong>.
+  </p>
+
+  <div class="formula-list formula-plain">F = FB + FC + FM + FV + FW + FZ
+FB = ND × PB, somente quando houver equipamento em ZPR0A; caso contrário, FB = 0
+FC = ND × PC
+FM = NM × PM
+FV = Σ[(NL + NDJ) × PEB]
+FW = Σ[(NL + NDJ) × PW]  |  PW já incorpora PSPD × PLD × CLD
+FZ = Σ[NI × PZ]  |  PZ já incorpora PSPD × PLI × CLI</div>
+
+  <div class="chart-panel">
+    <div class="chart-title">Gráfico global dos componentes de frequência</div>
+    {% set max_f = max_componentes_f|default(0) %}
+    {% for c in componentes_f %}
+      <div class="bar-row">
+        <div class="bar-label"><span>{{ c.nome }}</span><span class="bar-value">{{ "%.3e"|format(c.valor) }}</span></div>
+        <div class="bar-track"><div class="bar-fill-warn" style="width:{{ [((c.valor / max_f * 100) if max_f else 0), 3]|max }}%;"></div></div>
+      </div>
+    {% endfor %}
+  </div>
+
+  {% if zonas_calc and zonas_calc|length > 0 %}
+  <h2 class="sec">14.1 Componentes por zona</h2>
+  <p style="font-size:8.8pt;color:#64748b;margin-bottom:0.25cm;">Os componentes de frequência são apresentados em cartões verticais para evitar corte lateral no PDF.</p>
+  {% for z in zonas_calc %}
+  <div class="calc-card">
+    <div class="calc-card-title">{{ z.nome|default(z.id|default("Zona")) }}</div>
+    <table class="kv"><tbody>
+      <tr><td>F<sub>B</sub> — descarga direta com dano físico</td><td>{{ "%.3e"|format(z.FB|default(0)) }}</td></tr>
+      <tr><td>F<sub>C</sub> — falha de sistema por descarga direta</td><td>{{ "%.3e"|format(z.FC|default(0)) }}</td></tr>
+      <tr><td>F<sub>M</sub> — falha por descarga próxima</td><td>{{ "%.3e"|format(z.FM|default(0)) }}</td></tr>
+      <tr><td>F<sub>V</sub> — dano físico via linha</td><td>{{ "%.3e"|format(z.FV|default(0)) }}</td></tr>
+      <tr><td>F<sub>W</sub> — falha via linha</td><td>{{ "%.3e"|format(z.FW|default(0)) }}</td></tr>
+      <tr><td>F<sub>Z</sub> — falha por indução em linha</td><td>{{ "%.3e"|format(z.FZ|default(0)) }}</td></tr>
+      <tr class="total"><td>F total da zona</td><td>{{ "%.3e"|format(z.F|default(0)) }}</td></tr>
+    </tbody></table>
+  </div>
+  {% endfor %}
+  <div class="calc-card">
+    <div class="calc-card-title">Total global de frequência</div>
+    <table class="kv"><tbody><tr class="total"><td>F global</td><td>{{ "%.3e"|format(frequencia_danos_total) }}</td></tr></tbody></table>
+  </div>
+
+  <h2 class="sec">14.2 Probabilidades, blindagens e parâmetros internos</h2>
+  {% for z in zonas_calc %}
+  <div class="calc-card">
+    <div class="calc-card-title">{{ z.nome|default(z.id|default("Zona")) }}</div>
+    <table class="kv"><tbody>
+      <tr><td>P<sub>C</sub></td><td>{{ "%.3e"|format(z.PC_calc|default(0)) }}</td></tr>
+      <tr><td>PMS</td><td>{{ "%.3e"|format(z.PMS_calc|default(0)) }}</td></tr>
+      <tr><td>P<sub>M</sub></td><td>{{ "%.3e"|format(z.PM_calc|default(0)) }}</td></tr>
+      <tr><td>K<sub>S1</sub></td><td>{{ "%.3e"|format(z.KS1_calc|default(0)) }}</td></tr>
+      <tr><td>K<sub>S2</sub></td><td>{{ "%.3e"|format(z.KS2_calc|default(0)) }}</td></tr>
+      <tr><td>K<sub>S4</sub></td><td>{{ "%.3e"|format(z.KS4_calc|default(0)) }}</td></tr>
+    </tbody></table>
+  </div>
+  {% endfor %}
+
+  <h2 class="sec">14.3 Contribuição das linhas em F<sub>V</sub>, F<sub>W</sub> e F<sub>Z</sub></h2>
+  {% for z in zonas_calc %}
+    {% if z.linhas_contrib and z.linhas_contrib|length > 0 %}
+    <h3 class="sec">{{ z.nome|default(z.id|default("Zona")) }}</h3>
+    <table class="data wide-safe">
+      <thead><tr><th>Linha</th><th style="text-align:right">F<sub>V</sub></th><th style="text-align:right">F<sub>W</sub></th><th style="text-align:right">F<sub>Z</sub></th><th style="text-align:right">Total</th></tr></thead>
+      <tbody>
+        {% for lc in z.linhas_contrib %}
+        {% set ft_linha = (lc.FV|default(0)) + (lc.FW|default(0)) + (lc.FZ|default(0)) %}
+        <tr>
+          <td>{{ lc.nome|default(lc.id|default("Linha")) }}</td>
+          <td style="text-align:right;font-family:monospace">{{ "%.3e"|format(lc.FV|default(0)) }}</td>
+          <td style="text-align:right;font-family:monospace">{{ "%.3e"|format(lc.FW|default(0)) }}</td>
+          <td style="text-align:right;font-family:monospace">{{ "%.3e"|format(lc.FZ|default(0)) }}</td>
+          <td style="text-align:right;font-family:monospace;font-weight:bold">{{ "%.3e"|format(ft_linha) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+  {% endfor %}
+  {% else %}
+  <table class="data">
+    <thead><tr><th>Componente</th><th style="text-align:right">Valor</th></tr></thead>
+    <tbody>
+      <tr><td>F total</td><td style="text-align:right;font-family:monospace;font-weight:bold">{{ "%.3e"|format(frequencia_danos_total) }}</td></tr>
+    </tbody>
+  </table>
+  {% endif %}
+</div>
+
+<div class="section page-break">
+  <h1 class="sec">15. Perda de Patrimônio Cultural — R3</h1>
+  <p>Quando houver patrimônio cultural avaliado, esta seção apresenta R<sub>B3</sub>, R<sub>V3</sub> e R<sub>3</sub> por zona.</p>
+
+  {% if tem_r3 %}
+  <div class="formula-list">R3 = RB3 + RV3
+RB3 = ND × PB × LB3
+RV3 = Σ[(NL + NDJ) × PV × LV3]  |  PV já incorpora PEB × PLD × CLD
+LB3 = LV3 = rp × rf × LF × (cz/ct), quando aplicável</div>
+
+  <div class="chart-panel">
+    <div class="chart-title">Gráfico de composição — Patrimônio Cultural (R3)</div>
+    {% set max_r3c = max_componentes_r3|default(0) %}
+    {% for c in componentes_r3 %}
+      <div class="bar-row">
+        <div class="bar-label"><span>{{ c.nome }}</span><span class="bar-value">{{ "%.3e"|format(c.valor) }}</span></div>
+        <div class="bar-track"><div class="bar-fill-ok" style="width:{{ [((c.valor / max_r3c * 100) if max_r3c else 0), 3]|max }}%;"></div></div>
+      </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <table class="data">
+    <thead><tr><th>Zona</th><th style="text-align:right">R<sub>B3</sub></th><th style="text-align:right">R<sub>V3</sub></th><th style="text-align:right">R<sub>3</sub></th></tr></thead>
+    <tbody>
+      {% set ns_r3 = namespace(rows=0) %}
+      {% for z in zonas_calc %}
+        {% if (z.R3|default(0)) > 0 or (z.RB3|default(0)) > 0 or (z.RV3|default(0)) > 0 %}
+        {% set ns_r3.rows = ns_r3.rows + 1 %}
+        <tr>
+          <td><strong>{{ z.nome|default(z.id|default("Zona")) }}</strong></td>
+          <td style="text-align:right;font-family:monospace">{{ "%.3e"|format(z.RB3|default(0)) }}</td>
+          <td style="text-align:right;font-family:monospace">{{ "%.3e"|format(z.RV3|default(0)) }}</td>
+          <td style="text-align:right;font-family:monospace;font-weight:bold">{{ "%.3e"|format(z.R3|default(0)) }}</td>
+        </tr>
+        {% endif %}
+      {% endfor %}
+      {% if ns_r3.rows == 0 %}
+      <tr><td>Não informado / não aplicável</td><td style="text-align:right;font-family:monospace">0.000e+00</td><td style="text-align:right;font-family:monospace">0.000e+00</td><td style="text-align:right;font-family:monospace">0.000e+00</td></tr>
+      {% endif %}
+    </tbody>
+    <tfoot><tr><td colspan="3"><strong>R3 global</strong></td><td style="text-align:right;font-family:monospace;font-weight:bold">{{ "%.3e"|format(r3_valor) }}</td></tr></tfoot>
+  </table>
+</div>
+
+<div class="section page-break">
+  <h1 class="sec">16. Perdas Econômicas — R4</h1>
+  <p>Quando a avaliação econômica estiver habilitada, esta seção apresenta todos os componentes R4 calculados por zona. O R4 é informativo/opcional no Anexo D e não reprova o parecer normativo principal.</p>
+
+  {% if tem_r4 %}
+  <div class="formula-list formula-plain">R4 = RA4 + RB4 + RC4 + RM4 + RU4 + RV4 + RW4 + RZ4
+RA4 = ND × PA × LA4
+RB4 = ND × PB × LB4
+RC4 = ND × PC × LC4
+RM4 = NM × PM × LC4
+RU4 = Σ[(NL + NDJ) × PU × LU4]  |  PU já incorpora PTU × PEB × PLD × CLD
+RV4 = Σ[(NL + NDJ) × PV × LV4]  |  PV já incorpora PEB × PLD × CLD
+RW4 = Σ[(NL + NDJ) × PW × LW4]  |  PW já incorpora PSPD × PLD × CLD
+RZ4 = Σ[NI × PZ × LZ4]  |  PZ já incorpora PSPD × PLI × CLI</div>
+
+  <div class="chart-panel">
+    <div class="chart-title">Gráfico de composição — Perdas Econômicas (R4)</div>
+    {% set max_r4c = max_componentes_r4|default(0) %}
+    {% for c in componentes_r4 %}
+      <div class="bar-row">
+        <div class="bar-label"><span>{{ c.nome }}</span><span class="bar-value">{{ "%.3e"|format(c.valor) }}</span></div>
+        <div class="bar-track"><div class="bar-fill-bad" style="width:{{ [((c.valor / max_r4c * 100) if max_r4c else 0), 3]|max }}%;"></div></div>
+      </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <p style="font-size:8.8pt;color:#64748b;margin-bottom:0.25cm;">Para evitar corte lateral no PDF, os componentes econômicos são apresentados por zona em formato vertical.</p>
+  {% set ns_r4 = namespace(rows=0) %}
+  {% for z in zonas_calc %}
+    {% if (z.R4|default(0)) > 0 or (z.RA4|default(0)) > 0 or (z.RB4|default(0)) > 0 or (z.RC4|default(0)) > 0 or (z.RM4|default(0)) > 0 or (z.RU4|default(0)) > 0 or (z.RV4|default(0)) > 0 or (z.RW4|default(0)) > 0 or (z.RZ4|default(0)) > 0 %}
+    {% set ns_r4.rows = ns_r4.rows + 1 %}
+    <div class="calc-card">
+      <div class="calc-card-title">{{ z.nome|default(z.id|default("Zona")) }}</div>
+      <table class="kv"><tbody>
+        <tr><td>RA4</td><td>{{ "%.3e"|format(z.RA4|default(0)) }}</td></tr>
+        <tr><td>RB4</td><td>{{ "%.3e"|format(z.RB4|default(0)) }}</td></tr>
+        <tr><td>RC4</td><td>{{ "%.3e"|format(z.RC4|default(0)) }}</td></tr>
+        <tr><td>RM4</td><td>{{ "%.3e"|format(z.RM4|default(0)) }}</td></tr>
+        <tr><td>RU4</td><td>{{ "%.3e"|format(z.RU4|default(0)) }}</td></tr>
+        <tr><td>RV4</td><td>{{ "%.3e"|format(z.RV4|default(0)) }}</td></tr>
+        <tr><td>RW4</td><td>{{ "%.3e"|format(z.RW4|default(0)) }}</td></tr>
+        <tr><td>RZ4</td><td>{{ "%.3e"|format(z.RZ4|default(0)) }}</td></tr>
+        <tr class="total"><td>R4 da zona</td><td>{{ "%.3e"|format(z.R4|default(0)) }}</td></tr>
+      </tbody></table>
+    </div>
+    {% endif %}
+  {% endfor %}
+  {% if ns_r4.rows == 0 %}
+  <table class="data"><tbody><tr><td>Não informado / não aplicável</td><td style="text-align:right;font-family:monospace">0.000e+00</td></tr></tbody></table>
+  {% endif %}
+  <div class="calc-card">
+    <div class="calc-card-title">Total global de perdas econômicas</div>
+    <table class="kv"><tbody><tr class="total"><td>R4 global</td><td>{{ "%.3e"|format(r4_valor) }}</td></tr></tbody></table>
+  </div>
+
+  {% if zonas_calc and zonas_calc|length > 0 %}
+  <h2 class="sec">16.1 Contribuição de linhas em R4</h2>
+  {% for z in zonas_calc %}
+    {% if z.linhas_contrib and z.linhas_contrib|length > 0 %}
+    <h3 class="sec">{{ z.nome|default(z.id|default("Zona")) }}</h3>
+    <table class="data wide-safe">
+      <thead><tr><th>Linha</th><th style="text-align:right">RU4</th><th style="text-align:right">RV4</th><th style="text-align:right">RW4</th><th style="text-align:right">RZ4</th></tr></thead>
+      <tbody>
+        {% for lc in z.linhas_contrib %}
+        <tr>
+          <td>{{ lc.nome|default(lc.id|default("Linha")) }}</td>
+          <td style="text-align:right;font-family:monospace">{{ "%.3e"|format(lc.RU4|default(0)) }}</td>
+          <td style="text-align:right;font-family:monospace">{{ "%.3e"|format(lc.RV4|default(0)) }}</td>
+          <td style="text-align:right;font-family:monospace">{{ "%.3e"|format(lc.RW4|default(0)) }}</td>
+          <td style="text-align:right;font-family:monospace">{{ "%.3e"|format(lc.RZ4|default(0)) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+  {% endfor %}
+  {% endif %}
+</div>
+
+<div class="section page-break">
+  <h1 class="sec">17. Linhas Externas — Eventos Calculados</h1>
+  <p>Resumo dos eventos anuais associados às linhas externas avaliadas.</p>
+  <table class="data">
+    <thead><tr><th>Linha</th><th style="text-align:right">A<sub>L</sub></th><th style="text-align:right">A<sub>I</sub></th><th style="text-align:right">N<sub>L</sub></th><th style="text-align:right">N<sub>I</sub></th><th style="text-align:right">N<sub>DJ</sub></th></tr></thead>
+    <tbody>
+      {% if linhas_calc and linhas_calc|length > 0 %}
+        {% for l in linhas_calc %}
+        <tr>
+          <td><strong>{{ l.nome|default(l.id|default("Linha")) }}</strong></td>
+          <td style="text-align:right;font-family:monospace">{{ "%.1f"|format(l.AL_total|default(0)) }}</td>
+          <td style="text-align:right;font-family:monospace">{{ "%.1f"|format(l.AI_total|default(0)) }}</td>
+          <td style="text-align:right;font-family:monospace">{{ "%.3e"|format(l.NL_total|default(0)) }}</td>
+          <td style="text-align:right;font-family:monospace">{{ "%.3e"|format(l.NI_total|default(0)) }}</td>
+          <td style="text-align:right;font-family:monospace">{{ "%.3e"|format(l.NDJ|default(0)) }}</td>
+        </tr>
+        {% endfor %}
+      {% else %}
+        <tr><td>Sem linhas externas</td><td style="text-align:right;font-family:monospace">0.0</td><td style="text-align:right;font-family:monospace">0.0</td><td style="text-align:right;font-family:monospace">0.000e+00</td><td style="text-align:right;font-family:monospace">0.000e+00</td><td style="text-align:right;font-family:monospace">0.000e+00</td></tr>
+      {% endif %}
+    </tbody>
+  </table>
+</div>
+
+{% set r1_val = r1_valor|default(riscos.R1) %}
+{% set f_val = f_valor|default(frequencia_danos_total) %}
+{% set r3_val = r3_valor|default(0) %}
+{% set r4_val = r4_valor|default(0) %}
+{% set r1_rt = limites_normativos.R1|default(1e-5) %}
+{% set f_ft = limites_normativos.F|default(0.1) %}
+{% set r3_rt = limites_normativos.R3|default(1e-4) %}
+{% set r4_rt = limites_normativos.R4|default(1e-3) %}
+{% set r1_atende = r1_val <= r1_rt %}
+{% set f_atende = f_val <= f_ft %}
+{% set r3_atende = r3_val <= r3_rt %}
+{% set r4_atende = r4_val <= r4_rt %}
+<div class="section page-break">
+  <h1 class="sec">18. Painel de Resultados Gerais</h1>
+  <p>Abaixo, apresentamos os consolidadores analíticos que demonstram o desempenho da edificação perante as exigências normativas vigentes:</p>
+
+  <div class="resultado-grid">
+    {% for item in painel_resultados %}
+    {% set item_info = item.informativo|default(false) %}
+    <div class="resultado-card {{ 'atende' if (item.atende or item_info) else 'nao-atende' }}">
+      <div class="rc-label">{{ item.pilar }}</div>
+      <div class="rc-valor">{{ "%.2e"|format(item.valor) }}</div>
+      <div class="rc-status">{{ "INFORMATIVO" if item_info else ("APROVADO" if item.atende else "INSUFICIENTE") }}</div>
+      <div class="rc-ref">{{ "Referência econômica" if item_info else "Bloqueio Normativo" }}: {{ "%.2e"|format(item.limite) }}</div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.8cm; margin:1cm 0; padding: 1cm; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;">
+
+    {# ── Macro para desenhar um gauge ─────────────────────────────────── #}
+    {%- macro gauge_svg(g, label_rt, valor_fmt, ref_fmt, titulo) -%}
+    {%- set pct = g.pct / 100 -%}
+    {%- set p1 = [pct, 0.333]|min -%}
+    {%- set p2 = [[pct - 0.333, 0]|max, 0.333]|min -%}
+    {%- set p3 = [[pct - 0.667, 0]|max, 0.333]|min -%}
+    <div style="text-align:center;">
+      <div style="font-size:10pt;font-weight:700;color:#1e3a8a;margin-bottom:8pt;text-transform:uppercase;">{{ titulo }}</div>
+      <svg width="200" height="115" viewBox="0 0 200 115" xmlns="http://www.w3.org/2000/svg">
+        <path d="M 25 95 A 75 75 0 0 1 175 95" fill="none" stroke="#e2e8f0" stroke-width="18" stroke-linecap="round"/>
+        {% if p1 > 0.001 %}
+        {%- set a1e = 3.14159*(1-p1) -%}
+        <path d="M 25 95 A 75 75 0 0 1 {{ (100+75*(a1e|cos))|round(1) }} {{ (95-75*(a1e|sin))|round(1) }}"
+          fill="none" stroke="#22c55e" stroke-width="18" stroke-linecap="round"/>
+        {% endif %}
+        {% if p2 > 0.001 %}
+        {%- set a2s = 3.14159*(1-0.333) -%}
+        {%- set a2e = 3.14159*(1-0.333-p2) -%}
+        <path d="M {{ (100+75*(a2s|cos))|round(1) }} {{ (95-75*(a2s|sin))|round(1) }} A 75 75 0 0 1 {{ (100+75*(a2e|cos))|round(1) }} {{ (95-75*(a2e|sin))|round(1) }}"
+          fill="none" stroke="#f59e0b" stroke-width="18" stroke-linecap="round"/>
+        {% endif %}
+        {% if p3 > 0.001 %}
+        {%- set a3s = 3.14159*(1-0.667) -%}
+        {%- set a3e = 3.14159*(1-0.667-p3) -%}
+        <path d="M {{ (100+75*(a3s|cos))|round(1) }} {{ (95-75*(a3s|sin))|round(1) }} A 75 75 0 0 1 {{ (100+75*(a3e|cos))|round(1) }} {{ (95-75*(a3e|sin))|round(1) }}"
+          fill="none" stroke="#ef4444" stroke-width="18" stroke-linecap="round"/>
+        {% endif %}
+        <line x1="{{ g.cx }}" y1="{{ g.cy }}"
+              x2="{{ g.x2 }}" y2="{{ g.y2 }}"
+              stroke="{{ g.cor }}" stroke-width="4" stroke-linecap="round"/>
+        <circle cx="{{ g.cx }}" cy="{{ g.cy }}" r="7" fill="{{ g.cor }}"/>
+        <circle cx="{{ g.z1x }}" cy="{{ g.z1y }}" r="3" fill="#64748b"/>
+        <circle cx="{{ g.z2x }}" cy="{{ g.z2y }}" r="3" fill="#64748b"/>
+        <text x="18" y="112" text-anchor="middle" font-size="8" fill="#64748b">0</text>
+        <text x="100" y="14" text-anchor="middle" font-size="8" font-weight="bold" fill="#64748b">{{ label_rt }}</text>
+        <text x="182" y="112" text-anchor="middle" font-size="8" fill="#64748b">Crítico</text>
+      </svg>
+      <div style="font-size:15pt;font-weight:800;font-family:'Cascadia Code', monospace;color:{{ g.cor }};margin-top:2pt;">
+        {{ valor_fmt }}
+      </div>
+      <div style="font-size:8.5pt;color:#64748b;margin-top:2pt;">{{ ref_fmt }}</div>
+    </div>
+    {%- endmacro %}
+
+    {{ gauge_svg(gauge_r1, "Alvo R_T", "R1 = %.2e"|format(riscos.R1), "Máx: 1,00 × 10⁻⁵", "Ameaça à Vida (R1)") }}
+    {{ gauge_svg(gauge_f,  "Alvo F_T", "F = %.2e"|format(frequencia_danos_total), "Máx: %.2e"|format(f_ft), "Taxa de Falhas (F)") }}
+    {% if tem_r3 %}
+    {{ gauge_svg(gauge_r3, "Alvo R_T", "R3 = %.2e"|format(r3_valor), "Máx: 1,00 × 10⁻⁴", "Patrimônio Cultural (R3)") }}
+    {% endif %}
+    {% if tem_r4 %}
+    {{ gauge_svg(gauge_r4, "Alvo R_T", "R4 = %.2e"|format(r4_valor), "Máx: 1,00 × 10⁻³", "Perdas Econômicas (R4)") }}
+    {% endif %}
+  </div>
+
+  <div class="chart-panel">
+    <div class="chart-title">Comparativo normativo de todos os indicadores aplicáveis</div>
+    {% for item in painel_resultados %}
+      {% set razao = (item.valor / item.limite) if item.limite else 0 %}
+      {% set largura = [razao * 100, 200]|min %}
+      <div class="bar-row">
+        <div class="bar-label"><span>{{ item.pilar }}</span><span class="bar-value">{{ "%.3e"|format(item.valor) }} / {{ "%.2e"|format(item.limite) }}</span></div>
+        <div class="bar-track"><div class="{{ 'bar-fill-bad' if item.valor > item.limite else ('bar-fill-warn' if item.valor > item.limite * 0.5 else 'bar-fill-ok') }}" style="width:{{ [largura, 3]|max }}%;"></div></div>
+      </div>
+    {% endfor %}
+  </div>
+</div>
+
+
+<div class="section page-break">
+  <h1 class="sec">19. Parecer Técnico Conclusivo</h1>
+  <p>A partir do escrutínio numérico e da comparação dos resultados contra a tábua de tolerância da <strong>ABNT NBR 5419-2:2026</strong>, emite-se a seguinte posição técnica acerca da conformidade desta obra:</p>
+
+  <table class="data" style="margin-bottom:1cm;">
+    <thead><tr><th>Pilar de Análise</th><th>Métrica Levantada</th><th>Limite / Referência</th><th>Status Final</th></tr></thead>
+    <tbody>
+      {% for item in painel_resultados %}
+      {% set item_info = item.informativo|default(false) %}
+      <tr>
+        <td><strong>{{ item.pilar }}</strong></td>
+        <td style="font-family:monospace; font-weight:bold;">{{ "%.3e"|format(item.valor) }}</td>
+        <td style="font-family:monospace; color:#64748b;">{{ "%.2e"|format(item.limite) }}</td>
+        <td style="text-align:center;"><span class="{{ 'badge-atende' if (item.atende or item_info) else 'badge-nao-atende' }}">{{ "INFORMATIVO" if item_info else ("HABILITADO" if item.atende else "FORA DE NORMA") }}</span></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% if geral_aprovado %}
+  <div class="conclusao-ok">
+    <strong style="text-transform: uppercase;">Aprovação emitida: todos os indicadores aplicáveis atendem aos limites toleráveis.</strong><br>
+    O crivo matemático evidencia que, com os componentes ativos declarados, os indicadores avaliados permanecem abaixo dos limites toleráveis aplicáveis definidos pela ABNT NBR 5419-2:2026.
+  </div>
+  {% else %}
+  <div class="conclusao-critico">
+    <strong style="text-transform: uppercase;">Aprovação não emitida: existem parâmetros fora dos limites toleráveis.</strong><br>
+    A análise identificou que um ou mais indicadores aplicáveis excedem os limites toleráveis. Devem ser adotadas medidas de proteção adicionais e a análise deve ser recalculada após a revisão das condições de proteção.
+    <ul style="margin-top:8pt;">
+      {% for item in falhas_conformidade %}
+      <li><strong>{{ item.codigo }}:</strong> {{ item.pilar }} acima do limite tolerável de {{ "%.2e"|format(item.limite) }}.</li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  {% if fotos and fotos|length > 0 %}
+  <h2 class="sec" style="margin-top:1.5cm;">Levantamento Fotográfico</h2>
+  <div class="foto-grid">
+    {% for foto in fotos %}
+    <div class="foto-item">
+      <img src="{{ foto.base64 }}" alt="{{ foto.nome }}"/>
+      <div class="foto-legenda">{{ foto.nome }}</div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="assinatura">
+    <div class="assinatura-linha"></div>
+    <div class="assinatura-nome">{{ responsavel.nome }}</div>
+    {% if responsavel.registro %}<div class="assinatura-reg">Registro: {{ responsavel.registro }}</div>{% endif %}
+    {% if responsavel.empresa %}<div class="assinatura-reg">{{ responsavel.empresa }}</div>{% endif %}
+    <div class="assinatura-titulo" style="font-weight: bold; margin-top: 5px;">Anotador de Responsabilidade Técnica</div>
+    <div class="assinatura-titulo" style="margin-top:0.4cm;">Relatório chancelado em: {{ data_emissao }}</div>
+  </div>
+</div>
+
+</body>
+</html>

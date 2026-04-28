@@ -1,0 +1,80 @@
+version: "3.9"
+
+# ============================================================================
+# Stack completa do sistema PDA-NBR5419
+# ============================================================================
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: pda_nbr5419_db
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
+    environment:
+      POSTGRES_USER: pda_user
+      POSTGRES_PASSWORD: pda_password
+      POSTGRES_DB: pda_nbr5419
+    ports:
+      - "5432:5432"
+    volumes:
+      - pda_nbr5419_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pda_user -d pda_nbr5419"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  backend:
+    build:
+      context: ./backend
+      network: host
+    container_name: pda_nbr5419_backend
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
+    environment:
+      DATABASE_URL: postgresql+psycopg://pda_user:pda_password@db:5432/pda_nbr5419
+      FRONTEND_URL: http://localhost:3000
+      SECRET_KEY: ${SECRET_KEY:-mude-esta-chave-em-producao}
+      ENVIRONMENT: development
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    command: >
+      sh -c "
+        echo 'Aguardando banco de dados...' &&
+        until python -c \"import psycopg; psycopg.connect('postgresql://pda_user:pda_password@db:5432/pda_nbr5419')\" 2>/dev/null; do
+          echo 'DB ainda não pronto, aguardando 2s...' && sleep 2;
+        done &&
+        echo 'DB pronto! Executando migrações...' &&
+        alembic upgrade head &&
+        echo 'Migrações concluídas. Iniciando servidor...' &&
+        uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+      "
+    restart: on-failure
+
+  frontend:
+    build:
+      context: ./frontend
+      network: host
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
+    container_name: pda_nbr5419_frontend
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+volumes:
+  pda_nbr5419_data:

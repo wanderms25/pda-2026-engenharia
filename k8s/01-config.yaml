@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pda-config
+  namespace: poc-teste
+data:
+  # Configurações do Frontend
+  NEXT_PUBLIC_API_URL: "https://api.wanderops.com.br/api/v1"
+  # Configurações do Backend
+  DB_HOST: "postgres-service"
+  DB_PORT: "5432"
+  DB_NAME: "pda_db"
+  DB_USER: "postgres"
+  ENVIRONMENT: "production" 
+  FRONTEND_URL: "https://pda.wanderops.com.br" 
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: pda-secrets
+  namespace: poc-teste
+type: Opaque
+stringData:
+  # CUIDADO: Em produção real, não comite isso no Git!
+  DB_PASSWORD: "W%40nderwms2026"
+  SECRET_KEY: "chave_secreta_jwt_gerada_aleatoriamente"

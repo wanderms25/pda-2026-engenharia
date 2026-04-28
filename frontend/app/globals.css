@@ -1,0 +1,203 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* ====================================================================== */
+  /* TEMA CLARO (opcional, não é padrão)                                    */
+  /* ====================================================================== */
+  :root {
+    --background: 0 0% 100%;
+    --background-alt: 220 14% 96%;
+    --foreground: 222 47% 11%;
+    --foreground-muted: 215 16% 47%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --card-hover: 220 14% 98%;
+
+    --primary: 221 83% 53%;
+    --primary-foreground: 210 40% 98%;
+    --primary-hover: 221 83% 45%;
+
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222 47% 11%;
+
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
+
+    --accent: 210 40% 96%;
+    --accent-foreground: 222 47% 11%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 40% 98%;
+
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 98%;
+    --success-muted: 142 71% 95%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 10%;
+    --warning-muted: 38 92% 95%;
+
+    --danger: 0 84% 60%;
+    --danger-foreground: 0 0% 98%;
+    --danger-muted: 0 84% 95%;
+
+    --border: 214 32% 91%;
+    --border-subtle: 214 32% 94%;
+    --input: 214 32% 91%;
+    --ring: 221 83% 53%;
+
+    --radius: 0.75rem;
+  }
+
+  /* ====================================================================== */
+  /* TEMA ESCURO (padrão da aplicação)                                      */
+  /* ====================================================================== */
+  .dark {
+    /* Backgrounds — escala do mais escuro ao mais claro */
+    --background: 222 47% 4%;        /* quase preto */
+    --background-alt: 222 47% 6%;    /* sidebar, topbar */
+    --foreground: 210 40% 98%;
+    --foreground-muted: 215 20% 65%;
+
+    --card: 222 47% 8%;              /* cards elevados */
+    --card-foreground: 210 40% 98%;
+    --card-hover: 222 47% 10%;
+
+    --primary: 217 91% 60%;          /* azul vibrante */
+    --primary-foreground: 222 47% 4%;
+    --primary-hover: 217 91% 65%;
+
+    --secondary: 217 33% 14%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217 33% 14%;
+    --muted-foreground: 215 20% 65%;
+
+    --accent: 217 33% 14%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 72% 55%;
+    --destructive-foreground: 210 40% 98%;
+
+    --success: 142 71% 50%;
+    --success-foreground: 222 47% 4%;
+    --success-muted: 142 50% 15%;
+
+    --warning: 38 92% 55%;
+    --warning-foreground: 222 47% 4%;
+    --warning-muted: 38 50% 15%;
+
+    --danger: 0 72% 55%;
+    --danger-foreground: 210 40% 98%;
+    --danger-muted: 0 50% 15%;
+
+    --border: 217 33% 14%;
+    --border-subtle: 217 33% 10%;
+    --input: 217 33% 14%;
+    --ring: 217 91% 60%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1, "ss01" 1;
+    background-image:
+      radial-gradient(at 0% 0%, hsl(217 91% 60% / 0.08) 0px, transparent 50%),
+      radial-gradient(at 100% 100%, hsl(280 80% 60% / 0.05) 0px, transparent 50%);
+    background-attachment: fixed;
+  }
+
+  /* Scrollbar custom */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-background-alt;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-border rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-muted-foreground/30;
+  }
+}
+
+@layer components {
+  /* Card com glassmorphism sutil */
+  .card-glass {
+    @apply bg-card/60 backdrop-blur-xl border border-border-subtle;
+  }
+
+  /* Gradiente de fundo para áreas hero */
+  .hero-gradient {
+    background:
+      radial-gradient(circle at 30% 20%, hsl(var(--primary) / 0.15), transparent 40%),
+      radial-gradient(circle at 70% 80%, hsl(280 80% 60% / 0.1), transparent 40%);
+  }
+
+  /* Skeleton loader */
+  .skeleton {
+    @apply bg-muted animate-pulse rounded-md;
+  }
+
+  /* Input moderno com glow no focus */
+  .input-modern {
+    @apply bg-background-alt border border-border rounded-lg px-3.5 py-2.5 text-sm
+           transition-all duration-150
+           focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary
+           placeholder:text-foreground-muted;
+  }
+
+  /* Botão primário moderno */
+  .btn-primary-modern {
+    @apply bg-gradient-primary text-primary-foreground font-medium rounded-lg
+           px-4 py-2.5 shadow-glow
+           hover:opacity-90 active:scale-[0.98]
+           transition-all duration-150
+           disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  /* Badge status */
+  .badge-status {
+    @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium;
+  }
+
+  /* Grid responsivo de métricas */
+  .metrics-grid {
+    @apply grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4;
+  }
+}
+
+/* Animação fade-in aplicada a elementos novos */
+.animate-in {
+  animation: fade-in 0.4s ease-out;
+}
+
+/* Print styles (para PDFs gerados no cliente) */
+@media print {
+  body { background: white; color: black; }
+  .no-print { display: none !important; }
+}
+
+/* Fix select background in dark mode */
+select {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+select option {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+}

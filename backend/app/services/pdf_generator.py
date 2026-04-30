@@ -271,15 +271,9 @@ def _gerar_plano_aprovacao(
     r3_val = num(getattr(riscos, "R3", 0.0))
     r1_ok = r1 <= 1e-5
     r3_ok = (not tem_r3) or r3_val <= 1e-4
-    razao_max = max([num(item.get("valor")) / num(item.get("limite"), 1.0) for item in painel_resultados if not item.get("informativo") and num(item.get("limite")) > 0] + [1.0])
-    np = _np_por_razao(razao_max, _np_atual_from_medidas(medidas))
-    cfg_np = _parametros_np(np)
     L = num(getattr(entrada, "L", 0.0))
     W = num(getattr(entrada, "W", 0.0))
     H = num(getattr(entrada, "H", 0.0))
-    perimetro = 2 * max(0.0, L + W)
-    descidas_min = max(2, math.ceil(perimetro / cfg_np["descida"])) if perimetro > 0 else 2
-    metodo = "método do ângulo de proteção" if H <= cfg_np["hmax"] and L * W < 400 else ("método da esfera rolante" if H > cfg_np["hmax"] else "método combinado: malhas + verificação por esfera/ângulo")
 
     comp_dict = {
         "RA": num(componentes.RA), "RB": num(componentes.RB), "RC": num(componentes.RC), "RM": num(componentes.RM),
@@ -291,9 +285,41 @@ def _gerar_plano_aprovacao(
     ][:4]
 
     cf = {c.get("codigo"): num(c.get("valor")) for c in componentes_f}
-    dano_fisico = comp_dict["RB"] + comp_dict["RV"] + cf.get("FB", 0.0) + cf.get("FV", 0.0)
+    detalhes = getattr(riscos, "detalhes", {}) or {}
+    zonas_detalhes = detalhes.get("zonas", []) if isinstance(detalhes, dict) else []
+    rb3_direto = sum(num(z.get("RB3", 0.0)) for z in zonas_detalhes if isinstance(z, dict))
+    rv3_linhas = sum(num(z.get("RV3", 0.0)) for z in zonas_detalhes if isinstance(z, dict))
+
+    dano_fisico_direto = comp_dict["RB"] + rb3_direto + cf.get("FB", 0.0)
+    dano_fisico_linhas = comp_dict["RV"] + rv3_linhas + cf.get("FV", 0.0)
     toque_passo = comp_dict["RA"] + comp_dict["RU"]
     sistemas = comp_dict["RC"] + comp_dict["RM"] + comp_dict["RW"] + comp_dict["RZ"] + cf.get("FC", 0.0) + cf.get("FM", 0.0) + cf.get("FW", 0.0) + cf.get("FZ", 0.0)
+    exige_adequacao = bool(not geral_aprovado)
+    falha_vida_ou_patrimonio = (not r1_ok) or (not r3_ok)
+    falha_frequencia = f_val > ft
+
+    # O NP recomendado deve ser orientado pelas componentes que são efetivamente
+    # reduzidas pelo SPDA externo/captação (principalmente RB e RB3).
+    # Se a reprovação vier de surtos/linhas/sistemas internos, a recomendação
+    # principal deve ser MPS/DPS/ZPR ou tratamento das linhas, não elevar o NP
+    # automaticamente para I.
+    np_atual = _np_atual_from_medidas(medidas)
+    razao_protecao_externa = max(
+        (comp_dict["RB"] / 1e-5 if (not r1_ok and comp_dict["RB"] > 0) else 0.0),
+        (rb3_direto / 1e-4 if (not r3_ok and rb3_direto > 0) else 0.0),
+        1.0,
+    )
+    np = (np_atual or "III") if (geral_aprovado or (falha_frequencia and not falha_vida_ou_patrimonio)) else _np_por_razao(razao_protecao_externa, np_atual)
+    cfg_np = _parametros_np(np)
+    perimetro = 2 * max(0.0, L + W)
+    descidas_min = max(2, math.ceil(perimetro / cfg_np["descida"])) if perimetro > 0 else 2
+    area_planta = max(0.0, L) * max(0.0, W)
+    if H > cfg_np["hmax"]:
+        metodo = "método da esfera rolante"
+    elif area_planta >= 400:
+        metodo = "método das malhas / gaiola de Faraday"
+    else:
+        metodo = "método do ângulo de proteção"
 
     def _linha_critica() -> dict[str, Any] | None:
         melhor: dict[str, Any] | None = None
@@ -328,7 +354,11 @@ def _gerar_plano_aprovacao(
             "componentes": comps,
         })
 
-    if not geral_aprovado or dano_fisico > 0:
+    if exige_adequacao and dano_fisico_direto > 0 and (
+        ((not r1_ok) and comp_dict["RB"] > 0)
+        or ((not r3_ok) and rb3_direto > 0)
+        or (falha_frequencia and cf.get("FB", 0.0) > 0)
+    ):
         add(
             "Obrigatória" if (not r1_ok or not r3_ok) else "Alta",
             "SPDA externo e subsistema de captação",
@@ -339,7 +369,7 @@ def _gerar_plano_aprovacao(
             ["RB", "RV", "FB", "FV", "R3"],
         )
 
-    if sistemas > 0 or f_val > ft:
+    if exige_adequacao and (falha_frequencia or ((not r1_ok) and sistemas > 0)):
         add(
             "Obrigatória" if f_val > ft else "Alta",
             "MPS, DPS coordenados e ZPR",
@@ -350,7 +380,7 @@ def _gerar_plano_aprovacao(
             ["RC", "RM", "RW", "RZ", "FC", "FM", "FW", "FZ"],
         )
 
-    if toque_passo > 0:
+    if exige_adequacao and (not r1_ok) and toque_passo > 0:
         add(
             "Alta" if not geral_aprovado else "Média",
             "Tensões de toque e passo",
@@ -361,7 +391,7 @@ def _gerar_plano_aprovacao(
             ["RA", "RU"],
         )
 
-    if linha_critica and linha_critica["valor"] > 0:
+    if exige_adequacao and linha_critica and linha_critica["valor"] > 0 and (falha_frequencia or (not r1_ok) or (not r3_ok) or dano_fisico_linhas > 0):
         add(
             "Alta" if (f_val > ft or not r1_ok) else "Média",
             "Linhas externas",
@@ -414,7 +444,7 @@ def _gerar_plano_aprovacao(
     return {
         "aprovado": geral_aprovado,
         "titulo": "Sistema aprovado pelos indicadores calculados" if geral_aprovado else "Sistema ainda não aprovado - plano de adequação necessário",
-        "resumo": "Os indicadores obrigatórios atendem aos limites toleráveis; manter rastreabilidade, inspeção e documentação." if geral_aprovado else "As ações abaixo indicam o caminho técnico para adequação. Após executá-las, a análise deve ser recalculada para confirmar a aprovação.",
+        "resumo": "Os indicadores obrigatórios atendem aos limites toleráveis. Não há plano de adequação obrigatório; manter apenas inspeção, manutenção e rastreabilidade técnica." if geral_aprovado else "As ações abaixo indicam o caminho técnico para adequação. Após executá-las, a análise deve ser recalculada para confirmar a aprovação.",
         "np_recomendado": np,
         "metodo": metodo,
         "raio_esfera": cfg_np["raio"],

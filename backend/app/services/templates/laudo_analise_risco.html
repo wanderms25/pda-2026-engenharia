@@ -447,7 +447,7 @@
     ("16","Perdas Econômicas — R4"),
     ("17","Linhas Externas — Eventos Calculados"),
     ("18","Painel de Resultados Gerais"),
-    ("19","Plano de Adequação para Aprovação"),
+    ("19", "Manutenção da Conformidade" if plano_aprovacao.aprovado else "Plano de Adequação para Aprovação"),
     ("20","Parecer Técnico Conclusivo"),
   ] %}
   {% for num, titulo in secs %}
@@ -1053,20 +1053,26 @@ RZ4 = Σ[NI × PZ × LZ4]  |  PZ já incorpora PSPD × PLI × CLI</div>
 
 
 <div class="section page-break">
-  <h1 class="sec">19. Plano de Adequação para Aprovação</h1>
+  <h1 class="sec">19. {{ "Manutenção da Conformidade" if plano_aprovacao.aprovado else "Plano de Adequação para Aprovação" }}</h1>
+  {% if plano_aprovacao.aprovado %}
+  <p>Esta seção registra que os indicadores obrigatórios calculados atendem aos limites de tolerabilidade adotados. Não há plano de adequação obrigatório; recomenda-se manter inspeções, documentação e revalidação quando houver alterações relevantes.</p>
+  {% else %}
   <p>Esta seção traduz o resultado da análise de risco em ações técnicas para que o sistema possa ser aprovado. As ações devem ser implantadas e a análise deve ser recalculada até que os indicadores obrigatórios atendam aos limites toleráveis.</p>
+  {% endif %}
 
   <div class="plano-box {{ 'aprovado' if plano_aprovacao.aprovado else '' }}">
     <div class="plano-title">{{ plano_aprovacao.titulo }}</div>
     <div class="plano-resumo">{{ plano_aprovacao.resumo }}</div>
+    {% if not plano_aprovacao.aprovado %}
     <div class="plano-param-grid">
       <div class="plano-param"><div class="k">NP recomendado</div><div class="v">NP {{ plano_aprovacao.np_recomendado }}</div></div>
       <div class="plano-param"><div class="k">Método inicial</div><div class="v">{{ plano_aprovacao.metodo }}</div></div>
-      <div class="plano-param"><div class="k">Esfera / malha</div><div class="v">R={{ plano_aprovacao.raio_esfera }} m | {{ plano_aprovacao.malha }}</div></div>
+      <div class="plano-param"><div class="k">Parâmetros do NP</div><div class="v">R={{ plano_aprovacao.raio_esfera }} m | malha {{ plano_aprovacao.malha }}</div></div>
       <div class="plano-param"><div class="k">Descidas mínimas</div><div class="v">{{ plano_aprovacao.descidas_minimas }} | dist. {{ plano_aprovacao.distancia_descidas }} m</div></div>
     </div>
+    {% endif %}
 
-    {% if plano_aprovacao.dominantes and plano_aprovacao.dominantes|length > 0 %}
+    {% if (not plano_aprovacao.aprovado) and plano_aprovacao.dominantes and plano_aprovacao.dominantes|length > 0 %}
     <div class="dominantes">
       {% for d in plano_aprovacao.dominantes %}
       <span class="dominante-chip"><strong>{{ d.codigo }}</strong> {{ "%.3e"|format(d.valor) }} · {{ "%.1f"|format(d.percentual_r1) }}% do R1</span>

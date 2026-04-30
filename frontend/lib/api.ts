@@ -278,6 +278,16 @@ export interface Cliente {
   contato_nome: string | null;
   contato_email: string | null;
   contato_telefone: string | null;
+  tipo_pessoa?: "PF" | "PJ" | string | null;
+  cpf_cnpj?: string | null;
+  telefone?: string | null;
+  email?: string | null;
+  endereco?: string | null;
+  cidade?: string | null;
+  uf_cliente?: string | null;
+  cep?: string | null;
+  responsavel?: string | null;
+  nome_fantasia?: string | null;
 }
 
 export interface ClienteInput {
@@ -286,6 +296,16 @@ export interface ClienteInput {
   contato_nome?: string;
   contato_email?: string;
   contato_telefone?: string;
+  tipo_pessoa?: "PF" | "PJ" | string;
+  cpf_cnpj?: string;
+  telefone?: string;
+  email?: string;
+  endereco?: string;
+  cidade?: string;
+  uf_cliente?: string;
+  cep?: string;
+  responsavel?: string;
+  nome_fantasia?: string;
 }
 
 export async function listarClientes(): Promise<Cliente[]> {

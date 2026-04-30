@@ -44,9 +44,28 @@ export function setFeatureFlags(flags: FeatureFlag[]): void {
   if (typeof window === "undefined") return;
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(flags));
+    window.dispatchEvent(new CustomEvent("pda-feature-flags-updated"));
   } catch {}
 }
 
 export function isFlagEnabled(id: string): boolean {
   return getFeatureFlags().find(f => f.id === id)?.habilitado ?? true;
+}
+
+export function getFeatureFlagForPath(pathname: string, flags: FeatureFlag[] = getFeatureFlags()): FeatureFlag | null {
+  const path = pathname.split("?")[0].replace(/\/$/, "") || "/";
+
+  const matches = flags
+    .filter((flag) => {
+      const href = flag.href.replace(/\/$/, "") || "/";
+      return path === href || path.startsWith(`${href}/`);
+    })
+    .sort((a, b) => b.href.length - a.href.length);
+
+  return matches[0] ?? null;
+}
+
+export function isFeatureRouteEnabled(pathname: string, flags: FeatureFlag[] = getFeatureFlags()): boolean {
+  const flag = getFeatureFlagForPath(pathname, flags);
+  return flag?.habilitado ?? true;
 }

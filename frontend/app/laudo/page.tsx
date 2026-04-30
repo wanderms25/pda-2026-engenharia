@@ -1,5 +1,6 @@
 "use client";
 import InfoProfissional from "@/components/analise/info-profissional";
+import { ClienteAutocomplete, documentoCliente, enderecoCliente, nomeCliente } from "@/components/clientes/cliente-autocomplete";
 import { buscarCEP, buscarCNPJBrasilAPI, formatarCEP } from "@/lib/validacoes";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -22,6 +23,7 @@ import {
   type ResultadoRemediacao,
   type FotoLaudoInput,
   type LaudoInspecaoPDFRequest,
+  type Cliente,
 } from "@/lib/api";
 import {
   CheckCircle2,
@@ -196,6 +198,19 @@ export default function LaudoPage() {
     }
   }
 
+  function aplicarClienteCadastrado(cliente: Cliente) {
+    const endereco = enderecoCliente(cliente);
+    setDadosGerais((prev) => ({
+      ...prev,
+      cliente: nomeCliente(cliente),
+      cnpj_cliente: documentoCliente(cliente) || prev.cnpj_cliente,
+      cep: cliente.cep || prev.cep,
+      cidade: cliente.cidade || prev.cidade,
+      uf: cliente.uf_cliente || prev.uf,
+      endereco: endereco || prev.endereco,
+    }));
+  }
+
   async function handleAnalisar() {
     setAnalisando(true);
     setError(null);
@@ -366,6 +381,14 @@ export default function LaudoPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="sm:col-span-2">
+            <ClienteAutocomplete
+              label="Buscar cliente cadastrado"
+              value={dadosGerais.cliente}
+              onValueChange={(value) => setDadosGerais((prev) => ({ ...prev, cliente: value }))}
+              onSelect={aplicarClienteCadastrado}
+            />
+          </div>
           <div>
             <Label>Nome do projeto *</Label>
             <Input

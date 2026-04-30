@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: backend
-          image: docker.io/wanderms25/pda_nbr5419_backend:1.0.6
+          image: docker.io/wanderms25/pda_nbr5419_backend:1.0.9
           imagePullPolicy: Always
           ports:
             - containerPort: 8000

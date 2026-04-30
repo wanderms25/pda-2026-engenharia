@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: docker.io/wanderms25/pda_nbr5419_frontend:1.0.7
+          image: docker.io/wanderms25/pda_nbr5419_frontend:1.0.10
           imagePullPolicy: Always
           ports:
             - containerPort: 3000

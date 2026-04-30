@@ -486,9 +486,19 @@ function ClienteForm({
       await criarCliente({
         razao_social: form.razao_social,
         cnpj: tipoPessoa === "PJ" ? form.cpf_cnpj || undefined : undefined,
-        contato_nome: form.contato_nome || undefined,
+        tipo_pessoa: tipoPessoa,
+        cpf_cnpj: form.cpf_cnpj || undefined,
+        nome_fantasia: form.nome_fantasia || undefined,
+        responsavel: form.responsavel || form.contato_nome || undefined,
+        contato_nome: form.responsavel || form.contato_nome || undefined,
+        email: form.contato_email || undefined,
+        telefone: form.contato_telefone || undefined,
         contato_email: form.contato_email || undefined,
         contato_telefone: form.contato_telefone || undefined,
+        endereco: form.endereco || undefined,
+        cidade: form.cidade || undefined,
+        uf_cliente: form.uf_cliente || undefined,
+        cep: form.cep || undefined,
       });
       onSuccess();
     } catch (e) { setError(e instanceof Error ? e.message : "Erro ao salvar"); }

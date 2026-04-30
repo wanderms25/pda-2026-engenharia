@@ -156,3 +156,4 @@ test-results/
 playwright-report/
 coverage/
 old
+old_*

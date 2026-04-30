@@ -39,7 +39,7 @@ export default function FuncionalidadesPage() {
         <Badge variant={"outline" as any} className="mb-2 gap-1"><Sliders className="w-3 h-3" /> Admin</Badge>
         <h1 className="text-2xl font-bold">Controle de Funcionalidades</h1>
         <p className="text-sm text-foreground-muted mt-1">
-          Funcionalidades desabilitadas ficam ocultas para usuários comuns. Administradores veem tudo.
+          Funcionalidades desabilitadas ficam ocultas no menu e bloqueadas por rota, mesmo se alguém digitar o endereço diretamente.
         </p>
       </div>
 
@@ -76,7 +76,7 @@ export default function FuncionalidadesPage() {
       </div>
 
       <p className="text-xs text-foreground-muted">
-        As configurações são salvas localmente no navegador do administrador e aplicadas para todos os usuários que acessarem o sistema neste dispositivo/servidor.
+        As configurações são salvas localmente no navegador e usadas pelo bloqueio de rotas do sistema. Em produção multiusuário, recomenda-se persistir estas permissões no backend para padronizar entre dispositivos.
       </p>
     </div>
   );

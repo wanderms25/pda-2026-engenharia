@@ -187,9 +187,19 @@ function ClienteForm({ onSuccess, onCancel }: { onSuccess: (c: Cliente) => void;
       const c = await criarCliente({
         razao_social: form.razao_social,
         cnpj: form.tipo_pessoa==="PJ" ? form.cpf_cnpj||undefined : undefined,
+        tipo_pessoa: form.tipo_pessoa,
+        cpf_cnpj: form.cpf_cnpj || undefined,
+        nome_fantasia: form.nome_fantasia || undefined,
+        responsavel: form.responsavel || undefined,
         contato_nome: form.responsavel||undefined,
+        email: form.contato_email || undefined,
+        telefone: form.contato_telefone || undefined,
         contato_email: form.contato_email||undefined,
         contato_telefone: form.contato_telefone||undefined,
+        endereco: endereco || undefined,
+        cidade: form.cidade || undefined,
+        uf_cliente: form.uf_cliente || undefined,
+        cep: form.cep || undefined,
       });
       onSuccess(c);
     } catch (e) { setError(e instanceof Error ? e.message : "Erro ao salvar"); }

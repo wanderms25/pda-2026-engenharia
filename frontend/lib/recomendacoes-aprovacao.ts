@@ -70,9 +70,13 @@ function nivelPorRazao(razao: number, atual: NivelProtecao | null): NivelProteca
 function metodoPorGeometria(np: NivelProtecao, L: number, W: number, H: number, pb: string): MetodoProtecao {
   const area = Math.max(0, L) * Math.max(0, W);
   const coberturaNatural = pb.includes("COBERTURA_METALICA") || pb.includes("NP1_METALICA");
+
+  // A NBR 5419-3 aceita ângulo, esfera rolante e malhas.
+  // O método combinado não deve ser sugerido automaticamente para toda cobertura ampla;
+  // ele fica reservado ao dimensionamento manual ou a verificações complementares.
   if (coberturaNatural) return "malha";
   if (H > NP_CONFIG[np].hMaxAnguloM) return "esfera";
-  if (area >= 400) return "combinado";
+  if (area >= 400) return "malha";
   return "angulo";
 }
 
@@ -110,12 +114,7 @@ export function gerarPlanoAprovacaoAnaliseRisco(input: EntradaPlano): PlanoAprov
   const r3Aplicavel = r3 > 0 || (calc?.zonas ?? []).some((z) => n((z as any).R3) > 0 || n((z as any).RB3) > 0 || n((z as any).RV3) > 0);
   const r3Ok = !r3Aplicavel || r3 <= RT3;
   const aprovado = Boolean(calc) && r1Ok && fAtende && r3Ok;
-  const razaoMax = Math.max(r1 / RT1 || 0, f / ft || 0, r3Aplicavel ? r3 / RT3 || 0 : 0, 1);
   const npAtual = nivelAtualPB(input.pb);
-  const npRecomendado = nivelPorRazao(razaoMax, npAtual);
-  const metodoDimensionamento = metodoPorGeometria(npRecomendado, L, W, H, input.pb);
-  const cfg = NP_CONFIG[npRecomendado];
-  const angulo = anguloProtecao(npRecomendado, H);
 
   const componentes = [
     { codigo: "RA", valor: n(calc?.RA_g) },
@@ -134,9 +133,33 @@ export function gerarPlanoAprovacaoAnaliseRisco(input: EntradaPlano): PlanoAprov
 
   const acoes: AcaoAprovacao[] = [];
   const linhaCritica = maiorLinha(calc);
-  const danoFisico = n(calc?.RB_g) + n(calc?.RV_g) + somaZ(calc, "FB") + somaZ(calc, "FV");
+  const danoFisicoDireto = n(calc?.RB_g) + somaZ(calc, "RB3") + somaZ(calc, "FB");
+  const danoFisicoLinha = n(calc?.RV_g) + somaZ(calc, "RV3") + somaZ(calc, "FV");
   const toquePasso = n(calc?.RA_g) + n(calc?.RU_g);
   const sistemas = n(calc?.RC_g) + n(calc?.RM_g) + n(calc?.RW_g) + n(calc?.RZ_g) + somaZ(calc, "FC") + somaZ(calc, "FM") + somaZ(calc, "FW") + somaZ(calc, "FZ");
+  const exigeAdequacao = Boolean(calc) && !aprovado;
+  const falhaVidaOuPatrimonio = !r1Ok || !r3Ok;
+  const falhaFrequencia = !fAtende;
+
+  // O NP recomendado deve ser conduzido pelo risco R1/R3 ligado à proteção
+  // externa. Se apenas a frequência F estiver fora, o caminho principal é MPS/DPS/ZPR,
+  // preservando o NP declarado para a estrutura até o recálculo.
+  // O NP recomendado deve ser orientado pelas componentes que são efetivamente
+  // reduzidas pelo SPDA externo/captação (principalmente RB e RB3).
+  // Se a reprovação vier de surtos/linhas/sistemas internos, a recomendação
+  // principal deve ser MPS/DPS/ZPR ou tratamento das linhas, não elevar o NP
+  // automaticamente para I.
+  const razaoProtecaoExterna = Math.max(
+    !r1Ok && n(calc?.RB_g) > 0 ? n(calc?.RB_g) / RT1 : 0,
+    !r3Ok && somaZ(calc, "RB3") > 0 ? somaZ(calc, "RB3") / RT3 : 0,
+    1
+  );
+  const npRecomendado = aprovado || (falhaFrequencia && !falhaVidaOuPatrimonio)
+    ? (npAtual ?? "III")
+    : nivelPorRazao(razaoProtecaoExterna, npAtual);
+  const metodoDimensionamento = metodoPorGeometria(npRecomendado, L, W, H, input.pb);
+  const cfg = NP_CONFIG[npRecomendado];
+  const angulo = anguloProtecao(npRecomendado, H);
 
   if (!calc) {
     addUnica(acoes, {
@@ -150,7 +173,15 @@ export function gerarPlanoAprovacaoAnaliseRisco(input: EntradaPlano): PlanoAprov
     });
   }
 
-  if (!aprovado || danoFisico > 0) {
+  if (
+    exigeAdequacao &&
+    danoFisicoDireto > 0 &&
+    (
+      (!r1Ok && n(calc?.RB_g) > 0) ||
+      (!r3Ok && somaZ(calc, "RB3") > 0) ||
+      (falhaFrequencia && somaZ(calc, "FB") > 0)
+    )
+  ) {
     addUnica(acoes, {
       prioridade: !r1Ok || !r3Ok ? "Obrigatória" : "Alta",
       categoria: "SPDA externo / captação",
@@ -162,7 +193,7 @@ export function gerarPlanoAprovacaoAnaliseRisco(input: EntradaPlano): PlanoAprov
     });
   }
 
-  if (!fAtende || sistemas > 0) {
+  if (exigeAdequacao && (falhaFrequencia || (!r1Ok && sistemas > 0))) {
     addUnica(acoes, {
       prioridade: !fAtende ? "Obrigatória" : "Alta",
       categoria: "MPS / DPS / ZPR",
@@ -174,7 +205,7 @@ export function gerarPlanoAprovacaoAnaliseRisco(input: EntradaPlano): PlanoAprov
     });
   }
 
-  if (toquePasso > 0 || input.pta === "NENHUMA") {
+  if (exigeAdequacao && (!r1Ok || input.pta === "NENHUMA") && toquePasso > 0) {
     addUnica(acoes, {
       prioridade: !r1Ok ? "Alta" : "Média",
       categoria: "Tensões de toque e passo",
@@ -186,7 +217,7 @@ export function gerarPlanoAprovacaoAnaliseRisco(input: EntradaPlano): PlanoAprov
     });
   }
 
-  if (linhaCritica && linhaCritica.valor > 0) {
+  if (exigeAdequacao && linhaCritica && linhaCritica.valor > 0 && (falhaFrequencia || !r1Ok || !r3Ok || danoFisicoLinha > 0)) {
     addUnica(acoes, {
       prioridade: !fAtende || !r1Ok ? "Alta" : "Média",
       categoria: "Linhas externas",
@@ -247,7 +278,7 @@ export function gerarPlanoAprovacaoAnaliseRisco(input: EntradaPlano): PlanoAprov
     ? "Sistema aprovado pelos indicadores calculados"
     : "Sistema ainda não aprovado - plano de adequação necessário";
   const resumo = aprovado
-    ? "Os indicadores obrigatórios avaliados atendem aos limites toleráveis. As ações listadas são de manutenção e rastreabilidade técnica."
+    ? "Os indicadores obrigatórios avaliados atendem aos limites toleráveis. Não há plano de adequação obrigatório; manter apenas inspeção, manutenção e rastreabilidade técnica."
     : "As ações abaixo indicam o caminho técnico mínimo para adequar o sistema. Após executá-las, a análise deve ser recalculada para confirmar a aprovação.";
 
   return {

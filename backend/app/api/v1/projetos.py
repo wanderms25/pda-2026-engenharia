@@ -27,6 +27,18 @@ class ClienteIn(BaseModel):
     contato_email: str | None = None
     contato_telefone: str | None = None
 
+    # Cadastro completo usado pelo preenchimento automático dos módulos técnicos.
+    tipo_pessoa: str | None = Field(default=None, max_length=2)
+    cpf_cnpj: str | None = None
+    telefone: str | None = None
+    email: str | None = None
+    endereco: str | None = None
+    cidade: str | None = None
+    uf_cliente: str | None = Field(default=None, max_length=2)
+    cep: str | None = None
+    responsavel: str | None = None
+    nome_fantasia: str | None = None
+
 
 class ClienteOut(BaseModel):
     id: str
@@ -35,6 +47,23 @@ class ClienteOut(BaseModel):
     contato_nome: str | None
     contato_email: str | None
     contato_telefone: str | None
+    tipo_pessoa: str | None = None
+    cpf_cnpj: str | None = None
+    telefone: str | None = None
+    email: str | None = None
+    endereco: str | None = None
+    cidade: str | None = None
+    uf_cliente: str | None = None
+    cep: str | None = None
+    responsavel: str | None = None
+    nome_fantasia: str | None = None
+
+
+def _clean_text(v: str | None) -> str | None:
+    if v is None:
+        return None
+    v = v.strip()
+    return v or None
 
 
 def _cliente_to_out(c: Cliente) -> ClienteOut:
@@ -45,6 +74,16 @@ def _cliente_to_out(c: Cliente) -> ClienteOut:
         contato_nome=c.contato_nome,
         contato_email=c.contato_email,
         contato_telefone=c.contato_telefone,
+        tipo_pessoa=c.tipo_pessoa,
+        cpf_cnpj=c.cpf_cnpj,
+        telefone=c.telefone,
+        email=c.email,
+        endereco=c.endereco,
+        cidade=c.cidade,
+        uf_cliente=c.uf_cliente,
+        cep=c.cep,
+        responsavel=c.responsavel,
+        nome_fantasia=c.nome_fantasia,
     )
 
 
@@ -63,13 +102,29 @@ async def criar_cliente(
     db: Session = Depends(get_db),
     _: Usuario = Depends(get_current_user),
 ) -> ClienteOut:
+    cpf_cnpj = _clean_text(req.cpf_cnpj or req.cnpj)
+    email = _clean_text(req.email or req.contato_email)
+    telefone = _clean_text(req.telefone or req.contato_telefone)
+    responsavel = _clean_text(req.responsavel or req.contato_nome)
+    cnpj = _clean_text(req.cnpj if req.cnpj else (cpf_cnpj if req.tipo_pessoa == "PJ" else None))
+
     cliente = Cliente(
         id=uuid4(),
-        razao_social=req.razao_social,
-        cnpj=req.cnpj,
-        contato_nome=req.contato_nome,
-        contato_email=req.contato_email,
-        contato_telefone=req.contato_telefone,
+        razao_social=req.razao_social.strip(),
+        cnpj=cnpj,
+        contato_nome=responsavel,
+        contato_email=email,
+        contato_telefone=telefone,
+        tipo_pessoa=_clean_text(req.tipo_pessoa) or ("PJ" if cnpj else "PF"),
+        cpf_cnpj=cpf_cnpj,
+        telefone=telefone,
+        email=email,
+        endereco=_clean_text(req.endereco),
+        cidade=_clean_text(req.cidade),
+        uf_cliente=_clean_text(req.uf_cliente),
+        cep=_clean_text(req.cep),
+        responsavel=responsavel,
+        nome_fantasia=_clean_text(req.nome_fantasia),
         criado_em=datetime.utcnow(),
     )
     db.add(cliente)

@@ -49,20 +49,32 @@ const adminNavItems = [
 export function Sidebar() {
   const pathname = usePathname();
   const [isAdmin, setIsAdmin] = useState(false);
+  const [flags, setFlags] = useState(() =>
+    typeof window !== "undefined" ? getFeatureFlags() : [],
+  );
 
   useEffect(() => {
     const user = getCurrentUser();
     setIsAdmin(user?.role === "ADMIN");
+    setFlags(getFeatureFlags());
+
+    const onFlagsUpdated = () => setFlags(getFeatureFlags());
+    window.addEventListener("storage", onFlagsUpdated);
+    window.addEventListener("pda-feature-flags-updated", onFlagsUpdated);
+    return () => {
+      window.removeEventListener("storage", onFlagsUpdated);
+      window.removeEventListener("pda-feature-flags-updated", onFlagsUpdated);
+    };
   }, [pathname]);
 
-  // Filter nav items based on feature flags (admin sees all)
-  const flags = typeof window !== "undefined" ? getFeatureFlags() : [];
+  // Funcionalidades desativadas ficam ocultas no menu e bloqueadas no AuthGuard.
+  const enabledNavigation = navigation.filter(item => {
+    const flag = flags.find(f => f.href === item.href);
+    return !flag || flag.habilitado;
+  });
   const items = isAdmin
-    ? [...navigation, ...adminNavItems]
-    : navigation.filter(item => {
-        const flag = flags.find(f => f.href === item.href);
-        return !flag || flag.habilitado;
-      });
+    ? [...enabledNavigation, ...adminNavItems]
+    : enabledNavigation;
 
   return (
     <aside className="w-64 shrink-0 h-full flex flex-col bg-background-alt/40 backdrop-blur-xl border-r border-border-subtle">

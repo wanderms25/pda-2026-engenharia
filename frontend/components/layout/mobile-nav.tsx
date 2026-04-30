@@ -5,26 +5,35 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, X, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getCurrentUser } from "@/lib/api";
 import { getFeatureFlags } from "@/lib/feature-flags";
 import { navigation } from "./sidebar";
 
 export function MobileNav() {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
-  const flags = typeof window !== "undefined" ? getFeatureFlags() : [];
-  const user = typeof window !== "undefined" ? getCurrentUser() : null;
-  const items = user?.role === "ADMIN"
-    ? navigation
-    : navigation.filter((item) => {
-        const flag = flags.find((f) => f.href === item.href);
-        return !flag || flag.habilitado;
-      });
+  const [flags, setFlags] = useState(() =>
+    typeof window !== "undefined" ? getFeatureFlags() : [],
+  );
+  const items = navigation.filter((item) => {
+    const flag = flags.find((f) => f.href === item.href);
+    return !flag || flag.habilitado;
+  });
 
   // Fecha o drawer quando navegar
   useEffect(() => {
     setOpen(false);
+    setFlags(getFeatureFlags());
   }, [pathname]);
+
+  useEffect(() => {
+    const onFlagsUpdated = () => setFlags(getFeatureFlags());
+    window.addEventListener("storage", onFlagsUpdated);
+    window.addEventListener("pda-feature-flags-updated", onFlagsUpdated);
+    return () => {
+      window.removeEventListener("storage", onFlagsUpdated);
+      window.removeEventListener("pda-feature-flags-updated", onFlagsUpdated);
+    };
+  }, []);
 
   // Bloqueia scroll do body quando drawer aberto
   useEffect(() => {

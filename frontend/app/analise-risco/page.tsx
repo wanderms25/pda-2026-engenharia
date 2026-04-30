@@ -11,6 +11,8 @@ import {
   Shield, ShieldAlert, DollarSign, Activity,
 } from "lucide-react";
 import { MunicipioAutocomplete } from "@/components/analise/municipio-autocomplete";
+import { ClienteAutocomplete, enderecoCliente, nomeCliente } from "@/components/clientes/cliente-autocomplete";
+import type { Cliente } from "@/lib/api";
 
 // ─── Theme accent (blue) ──────────────────────────────────────────────────────
 const A = {
@@ -642,6 +644,14 @@ export default function AnaliseRiscoPage() {
   const contentScrollRef=useRef<HTMLDivElement|null>(null);
   const [confirmClearOpen,setConfirmClearOpen]=useState(false);
 
+  function aplicarClienteCadastrado(cliente: Cliente) {
+    setObra(nomeCliente(cliente));
+    const endereco = enderecoCliente(cliente);
+    if (endereco) setEndV(endereco);
+    if (cliente.uf_cliente) setUf(cliente.uf_cliente);
+    if (cliente.cidade) setMun(cliente.cidade);
+  }
+
   // Mantém esta tela com apenas um ponto de rolagem.
   // O scroll passa a ficar no contentScrollRef, evitando scroll duplo/vazio no body/main.
   useEffect(() => {
@@ -997,7 +1007,7 @@ export default function AnaliseRiscoPage() {
       const blob = await gerarLaudoPDF(buildPdfRequest());
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
-      a.href=url;a.download=`laudo-pda-${(obra||nomeAn||"projeto").toLowerCase().replace(/\s+/g,"-")}.pdf`;
+      a.href=url;a.download=`analise-de-risco-${(obra||nomeAn||"projeto").toLowerCase().replace(/\s+/g,"-")}.pdf`;
       document.body.appendChild(a);a.click();document.body.removeChild(a);
       setTimeout(()=>URL.revokeObjectURL(url),1000);
     } catch(e:any){setPdfError(e?.message||"Erro ao gerar PDF");}
@@ -1010,7 +1020,7 @@ export default function AnaliseRiscoPage() {
       const blob = await gerarLaudoWord(buildPdfRequest());
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
-      a.href=url;a.download=`laudo-pda-${(obra||nomeAn||"projeto").toLowerCase().replace(/\s+/g,"-")}.docx`;
+      a.href=url;a.download=`analise-de-risco-${(obra||nomeAn||"projeto").toLowerCase().replace(/\s+/g,"-")}.docx`;
       document.body.appendChild(a);a.click();document.body.removeChild(a);
       setTimeout(()=>URL.revokeObjectURL(url),1000);
     } catch(e:any){setWordError(e?.message||"Erro ao gerar Word");}
@@ -1111,6 +1121,120 @@ export default function AnaliseRiscoPage() {
     handleTabChange("analises");
   }
 
+  function preencherCenarioRecomendacao(alvo: "I"|"II"|"III"|"IV"|"APROVADO", blindagemAtiva:boolean){
+    const perfis = {
+      I: {
+        titulo: "Recomendação NP I", pb:"II", ng:80, L:80, W:42, H:24, loc:"ISOLADA_TOPO_COLINA",
+        lfEst:"RISCO_EXPLOSAO", lfTipo:"RISCO_EXPLOSAO", lfValor:"0.1", lo:"0.01", rf:"0.1b", rp:"1", hz:"10", nt:1200,
+        pta:"NENHUMA", pspd:"1", uwEquip:"1.0", ks3Sem:"1", ks3Com:"0.2", wm1:20, wm2:3,
+        energiaComp:1800, sinalComp:1200, pebEnergia:"NENHUM", pebSinal:"NENHUM", cldEnergia:"AEREO_NAO_BLINDADO", cldSinal:"AEREO_NAO_BLINDADO",
+        shieldEnergia:"AEREO_NAO_BLINDADO", shieldSinal:"AEREO_NAO_BLINDADO", uwLinha:"1.0", temL3:true, valPat:12, valEdifL3:10,
+        resumo:"Cenário severo para forçar plano com recomendação de NP I e medidas combinadas."
+      },
+      II: {
+        titulo: "Recomendação NP II", pb:"III", ng:18, L:60, W:32, H:18, loc:"ISOLADA",
+        lfEst:"ENTRETENIMENTO_PUBLICO", lfTipo:"ENTRETENIMENTO_PUBLICO", lfValor:"0.05", lo:"0.002", rf:"0.01", rp:"1", hz:"5", nt:650,
+        pta:"NENHUMA", pspd:"1", uwEquip:"1.0", ks3Sem:"1", ks3Com:"0.2", wm1:20, wm2:2,
+        energiaComp:1200, sinalComp:800, pebEnergia:"NENHUM", pebSinal:"NENHUM", cldEnergia:"AEREO_NAO_BLINDADO", cldSinal:"AEREO_NAO_BLINDADO",
+        shieldEnergia:"AEREO_NAO_BLINDADO", shieldSinal:"BLINDADO_5_20_OHM_KM", uwLinha:"1.0", temL3:true, valPat:8, valEdifL3:10,
+        resumo:"Cenário intermediário alto para testar recomendação de NP II e revisão de linhas."
+      },
+      III: {
+        titulo: "Recomendação NP III", pb:"IV", ng:34, L:48, W:26, H:12, loc:"ISOLADA",
+        lfEst:"ENTRETENIMENTO_PUBLICO", lfTipo:"ENTRETENIMENTO_PUBLICO", lfValor:"0.05", lo:"0.0008", rf:"0.01", rp:"0.5", hz:"2", nt:260,
+        pta:"NENHUMA", pspd:"0.05", uwEquip:"1.0", ks3Sem:"1", ks3Com:"0.2", wm1:20, wm2:2,
+        energiaComp:900, sinalComp:600, pebEnergia:"NENHUM", pebSinal:"NENHUM", cldEnergia:"AEREO_NAO_BLINDADO", cldSinal:"AEREO_BLINDADO_NAO_ATERRADO",
+        shieldEnergia:"AEREO_NAO_BLINDADO", shieldSinal:"BLINDADO_5_20_OHM_KM", uwLinha:"1.5", temL3:false, valPat:0, valEdifL3:10,
+        resumo:"Cenário moderado para testar recomendação de NP III."
+      },
+      IV: {
+        titulo: "Recomendação NP IV + MPS", pb:"IV", ng:18, L:55, W:28, H:10, loc:"CERCADA_MESMA_ALTURA",
+        lfEst:"ESCRITORIO", lfTipo:"ESCRITORIO", lfValor:"0.01", lo:"0", rf:"0.001b", rp:"0.5", hz:"1", nt:80,
+        pta:"AVISOS_ALERTA", pspd:"1", uwEquip:"1.0", ks3Sem:"1", ks3Com:"0.2", wm1:20, wm2:2,
+        energiaComp:1800, sinalComp:1400, pebEnergia:"NENHUM", pebSinal:"NENHUM", cldEnergia:"AEREO_NAO_BLINDADO", cldSinal:"AEREO_NAO_BLINDADO",
+        shieldEnergia:"AEREO_NAO_BLINDADO", shieldSinal:"AEREO_NAO_BLINDADO", uwLinha:"1.0", temL3:false, valPat:0, valEdifL3:10,
+        resumo:"Cenário com R dentro do limite e F fora, para testar recomendação mantendo NP IV e focando MPS/DPS/ZPR."
+      },
+      APROVADO: {
+        titulo: "Laudo aprovado", pb:"III", ng:1.5, L:35, W:18, H:8, loc:"CERCADA_OBJETOS_MAIS_ALTOS",
+        lfEst:"ESCRITORIO", lfTipo:"ESCRITORIO", lfValor:"0.01", lo:"0", rf:"0.001b", rp:"0.2", hz:"1", nt:25,
+        pta:"RESTRICOES_FISICAS_FIXAS", pspd:"0.005", uwEquip:"4.0", ks3Sem:"0.01", ks3Com:"0.0001", wm1:10, wm2:1,
+        energiaComp:120, sinalComp:100, pebEnergia:"NP1_MAX", pebSinal:"NP1_MAX", cldEnergia:"CABO_PROTECAO_METALICO", cldSinal:"INTERFACE_ISOLANTE_PROTEGIDA_POR_DPS",
+        shieldEnergia:"BLINDADO_MENOS_1_OHM_KM", shieldSinal:"BLINDADO_MENOS_1_OHM_KM", uwLinha:"6.0", temL3:false, valPat:0, valEdifL3:10,
+        resumo:"Cenário de referência para verificar laudo aprovado e manutenção da conformidade."
+      },
+    } as const;
+
+    const p = perfis[alvo];
+    const ks3 = blindagemAtiva ? p.ks3Com : p.ks3Sem;
+    const linhasExemplo: Linha[] = [
+      {
+        id:"L01", nome:"Linha de Energia", tipo_linha:"ENERGIA", ptu:p.pta, peb:p.pebEnergia, cld_cli:p.cldEnergia,
+        trechos:[{ id:"T01", comprimento_m:p.energiaComp, instalacao_ci:"AEREO", tipo_ct:"BT_SINAL", ambiente_ce:"RURAL", blindagem_rs:p.shieldEnergia, uw_kv:p.uwLinha }],
+        adj:{l_adj:0,w_adj:0,h_adj:0,cdj:"CERCADA_MESMA_ALTURA",ct_adj:"BT_SINAL"}
+      },
+      {
+        id:"L02", nome:"Linha de Sinal", tipo_linha:"SINAL", ptu:p.pta, peb:p.pebSinal, cld_cli:p.cldSinal,
+        trechos:[{ id:"T01", comprimento_m:p.sinalComp, instalacao_ci:"AEREO", tipo_ct:"BT_SINAL", ambiente_ce:"RURAL", blindagem_rs:p.shieldSinal, uw_kv:p.uwLinha }],
+        adj:{l_adj:0,w_adj:0,h_adj:0,cdj:"CERCADA_MESMA_ALTURA",ct_adj:"BT_SINAL"}
+      },
+    ];
+
+    const zonasExemplo: Zona[] = [
+      {
+        ...novaZona("01"),
+        id:"01",
+        nome:`${p.titulo} — ${blindagemAtiva ? "com blindagem espacial interna" : "sem blindagem espacial interna"}`,
+        blindagem: blindagemAtiva,
+        wm1:p.wm1,
+        wm2: blindagemAtiva ? p.wm2 : 0,
+        ks3e:ks3,
+        ks3s:ks3,
+        pspd:p.pspd,
+        uw_equip:p.uwEquip,
+        hz:p.hz,
+        nz:p.nt,
+        tz_mode:"h_ano",
+        tz_valor:2920,
+        lf_custom:true,
+        lf_tipo:p.lfTipo,
+        lo:p.lo,
+        rt:"0.001",
+        rf:p.rf,
+        rp:p.rp,
+        tem_l3:p.temL3,
+        val_pat:p.valPat,
+        val_edif_l3:p.valEdifL3,
+        habilitar_f:true,
+        ft_sistema:"0.1",
+        zpr0a:false,
+        habilitar_l4:true,
+        tipo_l4:p.lfEst,
+        l4_base_perdas:"ANEXO_D",
+        l4_usar_relacoes_valor:true,
+        val_animais:0,
+        val_edif_l4:1,
+        val_conteudo:0.5,
+        val_sistemas:1,
+      }
+    ];
+
+    setObra(`${p.titulo} — ${blindagemAtiva ? "com blindagem" : "sem blindagem"}`);
+    setNomeAn(`${p.resumo} ${blindagemAtiva ? "Versão com blindagem espacial interna." : "Versão sem blindagem espacial interna."}`);
+    setResp("Teste normativo"); setStatusV("EM_ANDAMENTO"); setArt("TESTE-NBR5419-2026"); setEndV("Cenário fictício para validação de recomendação");
+    setUf("SP"); setMun("Cenário manual"); setNgMan(true); setNgManV(p.ng); setNg(p.ng);
+    setL(p.L); setW(p.W); setH(p.H); setHp(0); setVidro(false); setLoc(p.loc);
+    setPb(`${p.pb}:null`); setRsEst("ALVENARIA_CONCRETO"); setNt(p.nt); setLfEst(p.lfEst); setPta(p.pta);
+    setLinhas(linhasExemplo); setZonas(zonasExemplo); setZonaAtiva("01");
+
+    const payloadExemplo = montarCalcPayload({
+      L:p.L, W:p.W, H:p.H, Hp:0, NG:p.ng, loc:p.loc, pb:`${p.pb}:null`, pta:p.pta,
+      nt:p.nt, lfEst:p.lfEst, rsEst:"ALVENARIA_CONCRETO", zonas:zonasExemplo, linhas:linhasExemplo,
+    });
+    triggerCalc(payloadExemplo);
+    handleTabChange("analises");
+  }
+
   function delZona(id:string){if(zonas.length===1)return;const nz=zonas.filter(z=>z.id!==id);setZonas(nz);if(zonaAtiva===id)setZonaAtiva(nz[0].id);}
   function updZona(id:string,patch:Partial<Zona>){setZonas(p=>p.map(z=>z.id===id?{...z,...patch}:z));}
 
@@ -1185,22 +1309,50 @@ export default function AnaliseRiscoPage() {
                 <Activity className="w-8 h-8 text-blue-400 shrink-0 mt-1"/>
                 <div>
                   <h2 className="text-xl font-bold text-white">Exemplos normativos para validação</h2>
-                  <p className="text-sm text-gray-400 mt-2 max-w-3xl">Preencha automaticamente todos os menus com dois cenários completos: duas zonas, duas linhas, R1, R3, frequência F e L4 pelo Anexo D da NBR 5419-2:2026.</p>
+                  <p className="text-sm text-gray-400 mt-2 max-w-3xl">Preencha automaticamente cenários completos para validar cálculo, plano de adequação, níveis de proteção, blindagem espacial interna, frequência F, R1, R3 e L4 pelo Anexo D da NBR 5419-2:2026.</p>
                 </div>
               </div>
               <div className="flex flex-col sm:flex-row gap-3 mt-6">
-                <button onClick={()=>preencherCenarioExemploNormativo(false)} className="px-4 py-3 rounded-xl bg-gray-700 hover:bg-gray-600 text-white font-semibold shadow-lg">Preencher cenário SEM blindagem</button>
-                <button onClick={()=>preencherCenarioExemploNormativo(true)} className="px-4 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-lg">Preencher cenário COM blindagem</button>
+                <button onClick={()=>preencherCenarioExemploNormativo(false)} className="px-4 py-3 rounded-xl bg-gray-700 hover:bg-gray-600 text-white font-semibold shadow-lg">Cenário clássico SEM blindagem</button>
+                <button onClick={()=>preencherCenarioExemploNormativo(true)} className="px-4 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-lg">Cenário clássico COM blindagem</button>
                 <button onClick={solicitarLimpezaDados} className="px-4 py-3 rounded-xl border border-red-500/30 bg-red-950/20 hover:bg-red-900/30 text-red-200 font-semibold transition-colors">Limpar tela</button>
               </div>
+
+              <div className="mt-6 rounded-2xl border border-blue-500/20 bg-blue-950/10 p-4">
+                <div className="flex items-start justify-between gap-3 flex-wrap">
+                  <div>
+                    <p className="text-sm font-semibold text-blue-200">Cenários de recomendação para validação do laudo</p>
+                    <p className="text-xs text-gray-400 mt-1 max-w-3xl">Use estes exemplos para conferir se a tela e o PDF geram recomendações coerentes para NP I, NP II, NP III, NP IV e laudo aprovado. Cada cenário possui versão com e sem blindagem espacial interna.</p>
+                  </div>
+                </div>
+                <div className="grid md:grid-cols-2 xl:grid-cols-5 gap-3 mt-4">
+                  {[
+                    { id:"I", titulo:"NP I", desc:"risco severo" },
+                    { id:"II", titulo:"NP II", desc:"risco alto" },
+                    { id:"III", titulo:"NP III", desc:"risco moderado" },
+                    { id:"IV", titulo:"NP IV", desc:"F crítico / MPS" },
+                    { id:"APROVADO", titulo:"Aprovado", desc:"manutenção" },
+                  ].map((item)=> (
+                    <div key={item.id} className="rounded-xl bg-[#111827] border border-[#2a3555] p-3 space-y-2">
+                      <div>
+                        <p className="text-sm font-bold text-white">{item.titulo}</p>
+                        <p className="text-[11px] text-gray-500 uppercase tracking-wide">{item.desc}</p>
+                      </div>
+                      <button onClick={()=>preencherCenarioRecomendacao(item.id as "I"|"II"|"III"|"IV"|"APROVADO", false)} className="w-full px-3 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 border border-gray-600/50 text-gray-100 text-xs font-semibold transition-colors">Sem blindagem</button>
+                      <button onClick={()=>preencherCenarioRecomendacao(item.id as "I"|"II"|"III"|"IV"|"APROVADO", true)} className="w-full px-3 py-2 rounded-lg bg-blue-700/80 hover:bg-blue-700 border border-blue-400/30 text-white text-xs font-semibold transition-colors">Com blindagem</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               <div className="mt-6 grid md:grid-cols-2 gap-4 text-sm text-gray-300">
                 <div className="rounded-xl bg-[#111827] border border-[#2a3555] p-4">
                   <p className="font-semibold text-white mb-2">O que será preenchido</p>
-                  <p>Estrutura 40 m × 20 m × 10 m, NG manual 10, duas linhas elétricas e duas zonas com L1, L3, F e L4 habilitados.</p>
+                  <p>Os cenários alteram geometria, NG, PB/NP adotado, DPS, linhas externas, perdas, zonas e blindagem para exercitar recomendações diferentes.</p>
                 </div>
                 <div className="rounded-xl bg-[#111827] border border-[#2a3555] p-4">
-                  <p className="font-semibold text-white mb-2">L4 normativo</p>
-                  <p>Os exemplos usam o Anexo D, Tabelas D.1/D.2, com relações econômicas habilitadas e tipo L4 definido por zona.</p>
+                  <p className="font-semibold text-white mb-2">Validação esperada</p>
+                  <p>Depois de carregar, gere o PDF e confira se o plano indica somente as medidas necessárias pelos resultados reais calculados. O cenário aprovado deve trazer apenas manutenção da conformidade.</p>
                 </div>
               </div>
             </section>
@@ -1215,6 +1367,12 @@ export default function AnaliseRiscoPage() {
             <div className="rounded-xl overflow-hidden">
               <SecHdr n={1} icon={ClipboardList} title="Dados do Cliente / Avaliação" open={s1} toggle={()=>setS1(v=>!v)}/>
               {s1&&<div className="bg-[#111827] p-5 space-y-4 rounded-b-xl">
+                <ClienteAutocomplete
+                  label="Buscar cliente cadastrado"
+                  value={obra}
+                  onValueChange={setObra}
+                  onSelect={aplicarClienteCadastrado}
+                />
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   {[["Obra / Cliente",obra,setObra],["Nome da Análise",nomeAn,setNomeAn],["Responsável Técnico",resp,setResp]].map(([lbl,val,set]:any)=>
                     <div key={lbl}><p className={FL}>{lbl}</p><input className={INP} style={INP_STYLE} value={val} onChange={e=>set(e.target.value)}/></div>)}
@@ -1961,20 +2119,22 @@ export default function AnaliseRiscoPage() {
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-2">
                     <ShieldAlert className={`w-5 h-5 ${planoAprovacao.aprovado ? "text-green-300" : "text-amber-300"}`}/>
-                    <p className={`text-sm font-bold uppercase tracking-widest ${planoAprovacao.aprovado ? "text-green-300" : "text-amber-300"}`}>Recomendação para aprovação normativa</p>
+                    <p className={`text-sm font-bold uppercase tracking-widest ${planoAprovacao.aprovado ? "text-green-300" : "text-amber-300"}`}>{planoAprovacao.aprovado ? "Conformidade e manutenção" : "Recomendação para aprovação normativa"}</p>
                   </div>
                   <h3 className="text-lg font-bold text-white">{planoAprovacao.titulo}</h3>
                   <p className="text-sm text-gray-400 mt-1 max-w-4xl">{planoAprovacao.resumo}</p>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs shrink-0">
-                  <div className="rounded-xl bg-[#0d1117] border border-[#24314f] px-3 py-2"><p className="text-gray-500">NP sugerido</p><p className="font-bold text-blue-300">NP {planoAprovacao.npRecomendado}</p></div>
-                  <div className="rounded-xl bg-[#0d1117] border border-[#24314f] px-3 py-2"><p className="text-gray-500">Método</p><p className="font-bold text-blue-300 capitalize">{planoAprovacao.metodoDimensionamento}</p></div>
-                  <div className="rounded-xl bg-[#0d1117] border border-[#24314f] px-3 py-2"><p className="text-gray-500">Malha máx.</p><p className="font-bold text-blue-300">{planoAprovacao.parametrosDimensionamento.malhaM[0]} × {planoAprovacao.parametrosDimensionamento.malhaM[1]} m</p></div>
-                  <div className="rounded-xl bg-[#0d1117] border border-[#24314f] px-3 py-2"><p className="text-gray-500">Descidas mín.</p><p className="font-bold text-blue-300">{planoAprovacao.parametrosDimensionamento.numeroMinimoDescidas}</p></div>
-                </div>
+                {!planoAprovacao.aprovado && (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs shrink-0">
+                    <div className="rounded-xl bg-[#0d1117] border border-[#24314f] px-3 py-2"><p className="text-gray-500">NP sugerido</p><p className="font-bold text-blue-300">NP {planoAprovacao.npRecomendado}</p></div>
+                    <div className="rounded-xl bg-[#0d1117] border border-[#24314f] px-3 py-2"><p className="text-gray-500">Método</p><p className="font-bold text-blue-300 capitalize">{planoAprovacao.metodoDimensionamento}</p></div>
+                    <div className="rounded-xl bg-[#0d1117] border border-[#24314f] px-3 py-2"><p className="text-gray-500">Parâmetros do NP</p><p className="font-bold text-blue-300">R={planoAprovacao.parametrosDimensionamento.raioEsferaM} m | {planoAprovacao.parametrosDimensionamento.malhaM[0]} × {planoAprovacao.parametrosDimensionamento.malhaM[1]} m</p></div>
+                    <div className="rounded-xl bg-[#0d1117] border border-[#24314f] px-3 py-2"><p className="text-gray-500">Descidas mín.</p><p className="font-bold text-blue-300">{planoAprovacao.parametrosDimensionamento.numeroMinimoDescidas} | dist. {planoAprovacao.parametrosDimensionamento.distanciaDescidaM} m</p></div>
+                  </div>
+                )}
               </div>
 
-              {planoAprovacao.componentesDominantes.length > 0 && (
+              {!planoAprovacao.aprovado && planoAprovacao.componentesDominantes.length > 0 && (
                 <div className="mt-4 flex flex-wrap gap-2">
                   {planoAprovacao.componentesDominantes.map((c)=>(
                     <span key={c.codigo} className="text-xs rounded-full bg-[#0d1117] border border-[#24314f] px-3 py-1 text-gray-300">

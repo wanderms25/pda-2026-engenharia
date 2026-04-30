@@ -18,7 +18,8 @@ import {
   Trash2,
   Zap,
 } from "lucide-react";
-import { gerarPDFPIE } from "@/lib/api";
+import { gerarPDFPIE, type Cliente } from "@/lib/api";
+import { ClienteAutocomplete, documentoCliente, enderecoCliente, nomeCliente } from "@/components/clientes/cliente-autocomplete";
 import {
   Badge,
   Button,
@@ -848,6 +849,18 @@ export default function ProntuarioInstalacoesEletricasPage() {
     setForm((prev) => ({ ...prev, identificacao: { ...prev.identificacao, [key]: value } }));
   }
 
+  function aplicarClienteCadastrado(cliente: Cliente) {
+    setForm((prev) => ({
+      ...prev,
+      identificacao: {
+        ...prev.identificacao,
+        condominio: nomeCliente(cliente),
+        cnpj: documentoCliente(cliente) || prev.identificacao.cnpj,
+        endereco: enderecoCliente(cliente) || prev.identificacao.endereco,
+      },
+    }));
+  }
+
   function updateChecklist(group: "documentacao" | "conformidade" | "spdaAterramento" | "ensaios" | "recomendacoes", id: string, value: SimNao) {
     setForm((prev) => ({
       ...prev,
@@ -1054,6 +1067,14 @@ export default function ProntuarioInstalacoesEletricasPage() {
           </div>
         </CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="md:col-span-2 lg:col-span-3">
+            <ClienteAutocomplete
+              label="Buscar cliente cadastrado"
+              value={form.identificacao.condominio}
+              onValueChange={(value) => updateIdentificacao("condominio", value)}
+              onSelect={aplicarClienteCadastrado}
+            />
+          </div>
           <Field label="Condomínio / empreendimento"><Input value={form.identificacao.condominio} onChange={(event) => updateIdentificacao("condominio", event.target.value)} /></Field>
           <Field label="CNPJ"><Input value={form.identificacao.cnpj} onChange={(event) => updateIdentificacao("cnpj", event.target.value)} /></Field>
           <Field label="Data"><Input type="date" value={form.identificacao.data} onChange={(event) => updateIdentificacao("data", event.target.value)} /></Field>

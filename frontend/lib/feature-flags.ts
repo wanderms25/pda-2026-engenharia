@@ -14,6 +14,7 @@ export const FLAGS_DEFAULT: FeatureFlag[] = [
   { id:"analise_risco",   label:"Análise de Risco",      descricao:"Análise R1/R3 conforme NBR 5419-2",     href:"/analise-risco",    habilitado:true },
   { id:"dimensionamento", label:"Dimensionamento",        descricao:"CAD SPDA e dimensionamento normativo",  href:"/dimensionamento",  habilitado:true },
   { id:"laudo",           label:"Laudo de Inspeção",      descricao:"Checklist e laudo de SPDA",             href:"/laudo",            habilitado:true },
+  { id:"pie",             label:"PIE - Instalações Elétricas", descricao:"Prontuário NR-10 para instalações elétricas", href:"/prontuario-instalacoes-eletricas", habilitado:true },
   { id:"clientes",        label:"Clientes",               descricao:"Cadastro de clientes PF/PJ",            href:"/clientes",         habilitado:true },
   { id:"projetos",        label:"Projetos",               descricao:"Gestão de projetos",                    href:"/projetos",         habilitado:true },
   { id:"zonas",           label:"Zonas de Estudo",        descricao:"Definição de zonas protegidas",         href:"/zonas",            habilitado:true },

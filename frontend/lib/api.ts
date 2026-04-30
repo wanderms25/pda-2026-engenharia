@@ -395,7 +395,7 @@ export interface AnaliseRiscoRequest {
   nome_obra?: string;
   municipio_uf?: string;
   endereco_obra?: string;
-  valores_calculados?: Record<string, number>;
+  valores_calculados?: Record<string, unknown>;
   endereco?: string;
   linhas_extra?: Record<string, unknown>;
 }
@@ -595,6 +595,31 @@ export async function gerarPDFLaudoInspecao(
       `Erro ao gerar PDF da inspeção: ${response.status}`,
       text,
     );
+  }
+  return response.blob();
+}
+
+
+// =============================================================================
+// PDF DO PRONTUÁRIO DE INSTALAÇÕES ELÉTRICAS (PIE)
+// =============================================================================
+export interface PiePDFRequest {
+  dados: Record<string, unknown>;
+}
+
+export async function gerarPDFPIE(req: PiePDFRequest): Promise<Blob> {
+  const token = getAuthToken();
+  const response = await fetch(`${API_BASE_URL}/pie/pdf`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(req),
+  });
+  if (!response.ok) {
+    const errBody = await response.json().catch(() => null);
+    throw new ApiError(response.status, errBody?.detail ?? `Erro ao gerar PDF do PIE: ${response.status}`);
   }
   return response.blob();
 }
@@ -895,7 +920,7 @@ export interface CalcResponse {
   RU_g:number; RV_g:number; RW_g:number; RZ_g:number;
 }
 
-export async function calcularPDA(payload: unknown): Promise<CalcResponse> {
+export async function calcularPDA(payload: unknown, signal?: AbortSignal): Promise<CalcResponse> {
   const token = getAuthToken();
   const resp = await fetch(`${API_BASE_URL}/calcular`, {
     method: "POST",
@@ -904,6 +929,7 @@ export async function calcularPDA(payload: unknown): Promise<CalcResponse> {
       ...(token ? { "Authorization": `Bearer ${token}` } : {}),
     },
     body: JSON.stringify(payload),
+    signal,
   });
   if (!resp.ok) {
     const err = await resp.json().catch(() => null);

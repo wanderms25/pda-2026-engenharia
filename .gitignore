@@ -1,0 +1,158 @@
+# =========================
+# Sistema / IDE
+# =========================
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# =========================
+# Ambiente / segredos
+# =========================
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+secrets/
+*.secret
+
+# =========================
+# Python / Backend
+# =========================
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+
+.Python
+.python-version
+venv/
+.venv/
+env/
+ENV/
+pip-wheel-metadata/
+pip-log.txt
+
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+.tox/
+.nox/
+
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# =========================
+# FastAPI / logs / arquivos gerados
+# =========================
+*.log
+logs/
+tmp/
+temp/
+.cache/
+
+backend/uploads/
+backend/media/
+backend/generated/
+backend/reports/
+backend/laudos/
+backend/static/generated/
+backend/app/static/generated/
+
+# PDFs/Docs gerados localmente
+*.pdf
+*.docx
+*.xlsx
+!docs/**/*.pdf
+!docs/**/*.docx
+!docs/**/*.xlsx
+
+# =========================
+# Banco local
+# =========================
+*.sqlite
+*.sqlite3
+*.db
+postgres-data/
+pgdata/
+
+# =========================
+# Node / Frontend
+# =========================
+node_modules/
+frontend/node_modules/
+
+.next/
+frontend/.next/
+out/
+frontend/out/
+
+.vercel/
+frontend/.vercel/
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Build / cache
+.turbo/
+frontend/.turbo/
+.parcel-cache/
+.eslintcache
+
+# =========================
+# TypeScript
+# =========================
+*.tsbuildinfo
+next-env.d.ts
+
+# =========================
+# Docker
+# =========================
+.docker/
+docker-data/
+docker-volumes/
+
+# =========================
+# Arquivos compactados
+# =========================
+*.zip
+*.tar
+*.tar.gz
+*.rar
+*.7z
+
+# =========================
+# Kubernetes local / temporários
+# =========================
+kubeconfig*
+*.kubeconfig
+
+# =========================
+# Arquivos CAD / referências pesadas locais
+# =========================
+*.dwg
+*.dxf
+*.bak
+*.tmp
+
+# =========================
+# Testes / snapshots locais
+# =========================
+test-results/
+playwright-report/
+coverage/
+old

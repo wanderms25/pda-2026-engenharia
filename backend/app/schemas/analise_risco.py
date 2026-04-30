@@ -7,7 +7,9 @@ entrada fora do domínio da norma.
 """
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+from app.nbr5419.parte2_linhas import validar_uw_linha_calculo_completo
 
 from app.nbr5419.enums import (
     AmbienteLinha,
@@ -53,6 +55,15 @@ class LinhaEletricaSchema(BaseModel):
         default=2.5,
         description="Tensão suportável de impulso dos equipamentos conectados (kV)",
     )
+
+    @field_validator("tensao_suportavel_UW_kV")
+    @classmethod
+    def validar_uw_linha(cls, value: float) -> float:
+        try:
+            return validar_uw_linha_calculo_completo(value)
+        except ValueError as exc:
+            raise ValueError(str(exc)) from exc
+
     # Proteção contra choque na linha (Tab B.6) — PTU
     # 0 = sem proteção, 0.01 = DPS NP I, etc.
     fator_ptu: float = Field(default=1.0, ge=0, le=1,

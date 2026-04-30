@@ -1,38 +1,79 @@
 """
-Endpoint wizard — Análise de risco completa multi-zona com múltiplas linhas.
-Suporta trechos SL, estrutura adjacente, L1/L3/L4 por zona, frequência F.
+Endpoint wizard — compatibilidade de API para análise de risco multi-zona.
+
+A partir desta versão, este endpoint NÃO possui motor próprio de cálculo.
+Ele apenas converte o payload legado do wizard para o contrato de /calcular,
+chama app.engine.calculo_completo.calcular_pda e adapta a resposta para o
+formato que telas/laudos antigos esperam.
+
+Regra de manutenção: qualquer alteração normativa deve ser feita em
+app.engine.calculo_completo, nunca neste adaptador.
 """
-import math
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
+from fastapi import APIRouter
+from pydantic import BaseModel, Field, model_validator
 
-from app.auth import get_current_user
-from app.models.orm import Usuario
-from app.engine.areas import (
-    DimensoesEstrutura, calcular_AD, calcular_AI, calcular_AL, calcular_AM,
-)
-from app.engine.avaliacao import avaliar_conformidade
-from app.engine.eventos import ParametrosLinha, calcular_ND, calcular_NI, calcular_NL, calcular_NM
-from app.engine.perdas import EntradaPerdas, calcular_perdas_L1
-from app.engine.probabilidades import EntradaProbabilidades, calcular_todas_probabilidades
-from app.engine.riscos import EntradaComponentes, ComponentesRisco, calcular_componentes, RiscosConsolidados
-from app.engine.frequencia_danos import calcular_frequencia_a_partir_de_probabilidades
+from app.engine.calculo_completo import calcular_pda
 from app.nbr5419.enums import (
-    AmbienteLinha, LocalizacaoEstrutura, NivelProtecao, PerigoEspecial,
-    ProvidenciasIncendio, RiscoIncendio, TipoConstrucao, TipoEstrutura,
-    TipoInstalacaoLinha, TipoLinhaEletrica, TipoPiso,
+    PerigoEspecial,
+    ProvidenciasIncendio,
+    RiscoIncendio,
+    TipoConstrucao,
+    TipoEstrutura,
+    TipoPiso,
 )
+from app.nbr5419.parte2_linhas import validar_uw_linha_calculo_completo
 from app.nbr5419.parte2_tabelas import (
-    FATOR_LOCALIZACAO_CD,
+    FATOR_HZ,
+    FATOR_RF,
+    FATOR_RP,
+    FATOR_RS,
+    FATOR_RT,
+    LF_L1_POR_ESTRUTURA,
     PROBABILIDADE_PB_CAPTACAO_NP1_ESTRUTURA_CONTINUA,
     PROBABILIDADE_PB_COBERTURA_METALICA_ESTRUTURA_CONTINUA,
     PROBABILIDADE_PTA,
-    LF_L1_POR_ESTRUTURA,
+)
+from app.schemas.calcular import (
+    CalcRequest,
+    CalcResponse,
+    EstAdjIn,
+    EstruturaPDA,
+    LinhaIn,
+    TrechoSLIn,
+    ZonaIn,
 )
 
 router = APIRouter()
+
+
+# Tabela B.3 — PSPD por nível do sistema coordenado de DPS.
+_CD_MAP: dict[str, float] = {
+    "CERCADA_OBJETOS_MAIS_ALTOS": 0.25,
+    "CERCADA_MESMA_ALTURA": 0.50,
+    "ISOLADA": 1.00,
+    "ISOLADA_TOPO_COLINA": 2.00,
+}
+
+
+_PSPD_MAP: dict[str, float] = {
+    "NENHUM": 1.0,
+    "IV": 0.05,
+    "III": 0.05,
+    "II": 0.02,
+    "I": 0.01,
+    "NP1_PLUS": 0.005,
+    "NP1_MAX": 0.001,
+}
+
+# O wizard antigo usava este texto, mas o schema unificado usa o valor do enum.
+_TIPO_CONSTRUCAO_ALIASES: dict[str, str] = {
+    "ALVENARIA_CONCRETO": TipoConstrucao.ALVENARIA_CONCRETO.value,
+    "ALV_CONCRETO": TipoConstrucao.ALVENARIA_CONCRETO.value,
+    "METALICA": TipoConstrucao.METALICA.value,
+    "MADEIRA": TipoConstrucao.MADEIRA.value,
+}
 
 
 class TrechoInput(BaseModel):
@@ -62,14 +103,36 @@ class LinhaWizardInput(BaseModel):
     trechos: list[TrechoInput] = Field(default_factory=list)
     adjacente: EstruturaAdjacenteInput = Field(default_factory=EstruturaAdjacenteInput)
 
+    @model_validator(mode="after")
+    def validar_tensoes_uw_trechos(self):
+        for idx, trecho in enumerate(self.trechos, start=1):
+            try:
+                validar_uw_linha_calculo_completo(trecho.uw_kv)
+            except ValueError as exc:
+                raise ValueError(f"Linha {self.id}, trecho {idx}: {exc}") from exc
+        return self
+
 
 class ZonaWizardInput(BaseModel):
     id: str
     nome: str
+
+    # KS1/KS2 — blindagem espacial/malha.
+    wm1: float = 0.0
     blindagem_espacial: bool = False
+    wm2: float = 0.0
+
+    # KS3 por sistema interno.
     ks3_energia: float = 1.0
     ks3_sinal: float = 1.0
+
+    # KS4 — tensão suportável do equipamento.
+    uw_equip_kv: float = 1.5
+
+    # Tabela B.3 — DPS coordenados.
     pspd: str = "NENHUM"
+
+    # Fatores de perda L1.
     hz: str = "NENHUM"
     nz: int = 0
     tz_horas_ano: float = 8760.0
@@ -78,8 +141,11 @@ class ZonaWizardInput(BaseModel):
     rt: str = "MARMORE_CERAMICA"
     rf: str = "NORMAL"
     rp: str = "NENHUMA"
+
+    # Frequência F.
     habilitar_f: bool = True
     sistema_interno_ft: float = 0.1
+    zpr0a: bool = False
 
 
 class WizardRequest(BaseModel):
@@ -105,19 +171,31 @@ class WizardRequest(BaseModel):
     zonas: list[ZonaWizardInput] = Field(default_factory=list)
 
 
-# ── Enum helpers ──────────────────────────────────────────────────────────────
+def _enum_value(enum_cls, value: str, default: str) -> str:
+    """Aceita tanto o nome do enum quanto o valor serializado."""
+    if value in enum_cls.__members__:
+        return enum_cls[value].value
+    for member in enum_cls:
+        if member.value == value:
+            return member.value
+    return default
 
-_LOC = {k.value: k for k in LocalizacaoEstrutura}
-_TE  = {k.value: k for k in TipoEstrutura}
-_TP  = {k.value: k for k in TipoPiso}
-_RI  = {k.value: k for k in RiscoIncendio}
-_RP  = {k.value: k for k in ProvidenciasIncendio}
-_PE  = {k.value: k for k in PerigoEspecial}
-_NP  = {k.value: k for k in NivelProtecao}
-_TC  = {k.value: k for k in TipoConstrucao}
-_INST= {k.value: k for k in TipoInstalacaoLinha}
-_TL  = {k.value: k for k in TipoLinhaEletrica}
-_AMB = {k.value: k for k in AmbienteLinha}
+
+def _enum_member(enum_cls, value: str, default_member):
+    if value in enum_cls.__members__:
+        return enum_cls[value]
+    for member in enum_cls:
+        if member.value == value:
+            return member
+    return default_member
+
+
+def _tipo_estrutura_value(value: str | None) -> str:
+    return _enum_value(TipoEstrutura, value or TipoEstrutura.OUTROS.value, TipoEstrutura.OUTROS.value)
+
+
+def _tipo_construcao_value(value: str) -> str:
+    return _TIPO_CONSTRUCAO_ALIASES.get(value, TipoConstrucao.ALVENARIA_CONCRETO.value)
 
 
 def _pb_value(req: WizardRequest) -> float:
@@ -125,247 +203,242 @@ def _pb_value(req: WizardRequest) -> float:
         return PROBABILIDADE_PB_CAPTACAO_NP1_ESTRUTURA_CONTINUA
     if req.pb_especial == "COBERTURA_METALICA":
         return PROBABILIDADE_PB_COBERTURA_METALICA_ESTRUTURA_CONTINUA
-    return {
-        "NENHUM": 1.0, "IV": 0.20, "III": 0.10, "II": 0.05, "I": 0.02,
-    }.get(req.pb_nivel, 1.0)
+    return {"NENHUM": 1.0, "IV": 0.20, "III": 0.10, "II": 0.05, "I": 0.02}.get(req.pb_nivel, 1.0)
 
 
-def _rs_value(req: WizardRequest) -> float:
-    return {"ALVENARIA_CONCRETO": 1.0, "MADEIRA": 2.0}.get(req.rs_tipo, 1.0)
+def _lf_l1_value(tipo_estrutura: str) -> float:
+    member = _enum_member(TipoEstrutura, tipo_estrutura, TipoEstrutura.OUTROS)
+    return LF_L1_POR_ESTRUTURA.get(member, 1e-2)
 
 
-def _calc_trecho_events(NG: float, t: TrechoInput):
-    inst = _INST.get(t.instalacao_ci, TipoInstalacaoLinha.AEREO)
-    tipo = _TL.get(t.tipo_ct, TipoLinhaEletrica.BT_SINAL)
-    amb  = _AMB.get(t.ambiente_ce, AmbienteLinha.URBANO_ESTRUTURAS_ALTAS)
-    AL = calcular_AL(t.comprimento_m)
-    AI = calcular_AI(t.comprimento_m)
-    params = ParametrosLinha(comprimento_m=t.comprimento_m, instalacao=inst, tipo=tipo, ambiente=amb)
-    return calcular_NL(NG, AL, params), calcular_NI(NG, AI, params)
+def _build_calc_request(req: WizardRequest) -> CalcRequest:
+    tipo_estrutura_global = _tipo_estrutura_value(req.lf_tipo)
+    tipo_construcao = _tipo_construcao_value(req.rs_tipo)
 
-
-def _calc_ndj(NG: float, adj: EstruturaAdjacenteInput) -> float:
-    if adj.l_adj <= 0 or adj.w_adj <= 0 or adj.h_adj <= 0:
-        return 0.0
-    try:
-        from app.engine.areas import calcular_ADJ
-        from app.engine.eventos import calcular_NDJ
-        dim_adj = DimensoesEstrutura(L=adj.l_adj, W=adj.w_adj, H=adj.h_adj)
-        ADJ = calcular_ADJ(dim_adj)
-        loc_adj = _LOC.get(adj.cdj, LocalizacaoEstrutura.CERCADA_MESMA_ALTURA)
-        return calcular_NDJ(NG, ADJ, loc_adj)
-    except Exception:
-        return 0.0
-
-
-@router.post("/analise-risco/wizard")
-async def calcular_wizard(req: WizardRequest) -> dict[str, Any]:
-    """Cálculo completo multi-zona com múltiplas linhas — wizard NBR 5419-2:2026."""
-
-    # ── Áreas e eventos globais ───────────────────────────────────────────────
-    dim = DimensoesEstrutura(
-        L=req.L, W=req.W, H=req.H,
-        H_saliencia=req.Hp if req.Hp > 0 else None,
-    )
-    AD = calcular_AD(dim)
-    AM = calcular_AM(dim)
-
-    loc = _LOC.get(req.localizacao, LocalizacaoEstrutura.CERCADA_MESMA_ALTURA)
-    CD  = FATOR_LOCALIZACAO_CD[loc]
-    ND  = calcular_ND(req.NG, AD, loc)
-    NM  = calcular_NM(req.NG, AM)
-
-    # ── Eventos por linha ─────────────────────────────────────────────────────
-    linhas_ev: list[dict] = []
+    linhas: list[LinhaIn] = []
     for linha in req.linhas:
-        NL_l = NI_l = AL_l = AI_l = 0.0
-        for t in linha.trechos:
-            nl, ni = _calc_trecho_events(req.NG, t)
-            NL_l += nl
-            NI_l += ni
-            AL_l += calcular_AL(t.comprimento_m)
-            AI_l += calcular_AI(t.comprimento_m)
-        NDJ_l = _calc_ndj(req.NG, linha.adjacente)
-        linhas_ev.append({
-            "id": linha.id, "nome": linha.nome, "tipo": linha.tipo_linha,
-            "AL": AL_l, "AI": AI_l,
-            "NL": NL_l, "NI": NI_l, "NDJ": NDJ_l,
+        trechos = [
+            TrechoSLIn(
+                id=f"{linha.id}-SL{idx}",
+                comprimento_m=t.comprimento_m,
+                instalacao_ci=t.instalacao_ci,
+                tipo_ct=t.tipo_ct,
+                ambiente_ce=t.ambiente_ce,
+                blindagem_rs=t.blindagem_rs,
+                uw_kv=t.uw_kv,
+            )
+            for idx, t in enumerate(linha.trechos, start=1)
+        ]
+        linhas.append(
+            LinhaIn(
+                id=linha.id,
+                nome=linha.nome,
+                tipo_linha=linha.tipo_linha,
+                ptu=linha.ptu,
+                peb=linha.peb,
+                cld_cli=linha.cld_cli,
+                trechos=trechos,
+                adj=EstAdjIn(
+                    l_adj=linha.adjacente.l_adj,
+                    w_adj=linha.adjacente.w_adj,
+                    h_adj=linha.adjacente.h_adj,
+                    cdj=linha.adjacente.cdj,
+                    ct_adj=linha.adjacente.ct_adj,
+                ),
+            )
+        )
+
+    zonas_in = req.zonas if req.zonas else [ZonaWizardInput(id="ZS01", nome="Zona 01")]
+    zonas: list[ZonaIn] = []
+    for zona in zonas_in:
+        tipo_zona = _tipo_estrutura_value(zona.lf_tipo) if zona.lf_tipo else tipo_estrutura_global
+        tipo_piso = _enum_member(TipoPiso, zona.rt, TipoPiso.MARMORE_CERAMICA)
+        risco_incendio = _enum_member(RiscoIncendio, zona.rf, RiscoIncendio.NORMAL)
+        providencia = _enum_member(ProvidenciasIncendio, zona.rp, ProvidenciasIncendio.NENHUMA)
+        perigo = _enum_member(PerigoEspecial, zona.hz, PerigoEspecial.NENHUM)
+        construcao = _enum_member(TipoConstrucao, tipo_construcao, TipoConstrucao.ALVENARIA_CONCRETO)
+
+        zonas.append(
+            ZonaIn(
+                id=zona.id,
+                nome=zona.nome,
+                nz=zona.nz,
+                tz_mode="h_ano",
+                tz_valor=zona.tz_horas_ano,
+                rt=FATOR_RT[tipo_piso],
+                rf=FATOR_RF[risco_incendio],
+                rp=FATOR_RP[providencia],
+                hz=FATOR_HZ[perigo],
+                lf_valor=_lf_l1_value(tipo_zona),
+                lf_custom=bool(zona.lf_tipo),
+                lo=max(float(zona.lo), 0.0),
+                tem_lo=zona.lo > 0,
+                pspd=_PSPD_MAP.get(zona.pspd, 1.0),
+                blindagem=zona.blindagem_espacial,
+                ks3_energia=zona.ks3_energia,
+                ks3_sinal=zona.ks3_sinal,
+                wm1=zona.wm1,
+                wm2=zona.wm2,
+                uw_equip=zona.uw_equip_kv,
+                habilitar_f=zona.habilitar_f,
+                ft_sistema=zona.sistema_interno_ft,
+                zpr0a=zona.zpr0a,
+            )
+        )
+
+    estrutura = EstruturaPDA(
+        L=req.L,
+        W=req.W,
+        H=req.H,
+        Hp=req.Hp,
+        NG=req.NG,
+        loc=req.localizacao,
+        pb=_pb_value(req),
+        pta=PROBABILIDADE_PTA.get(req.pta_tipo, 1.0),
+        nt=req.nt,
+        tipo_estrutura=tipo_estrutura_global,
+        tipo_construcao=tipo_construcao,
+    )
+
+    # Validação de consistência: se algum fator de construção foi recebido, ele precisa estar mapeado.
+    _ = FATOR_RS[_enum_member(TipoConstrucao, tipo_construcao, TipoConstrucao.ALVENARIA_CONCRETO)]
+    return CalcRequest(estrutura=estrutura, zonas=zonas, linhas=linhas)
+
+
+def _dominante(componentes: dict[str, float]) -> str:
+    return max(componentes, key=lambda k: componentes[k]) if any(v > 0 for v in componentes.values()) else "RB"
+
+
+def _wizard_response(req: WizardRequest, calc_req: CalcRequest, calc: CalcResponse) -> dict[str, Any]:
+    comp_global = {
+        "RA": calc.RA_g,
+        "RB": calc.RB_g,
+        "RC": calc.RC_g,
+        "RM": calc.RM_g,
+        "RU": calc.RU_g,
+        "RV": calc.RV_g,
+        "RW": calc.RW_g,
+        "RZ": calc.RZ_g,
+    }
+    dom = _dominante(comp_global)
+
+    linhas_eventos = []
+    for linha in calc.linhas:
+        nl_x_pld = sum(t.NL * t.PLD for t in linha.trechos)
+        ni_x_pli = sum(t.NI * t.PLI for t in linha.trechos)
+        pld_max = max((t.PLD for t in linha.trechos), default=1.0)
+        linhas_eventos.append({
+            "nome": linha.nome,
+            "tipo": linha.tipo_linha,
+            "AL": linha.AL_total,
+            "AI": linha.AI_total,
+            "NL": linha.NL_total,
+            "NI": linha.NI_total,
+            "NDJ": linha.NDJ,
+            "nl_x_pld": nl_x_pld,
+            "ni_x_pli": ni_x_pli,
+            "ndj_x_pld": linha.NDJ * pld_max,
         })
 
-    NL_total  = sum(e["NL"]  for e in linhas_ev)
-    NI_total  = sum(e["NI"]  for e in linhas_ev)
-    NDJ_total = sum(e["NDJ"] for e in linhas_ev)
-
-    # ── Fatores globais ───────────────────────────────────────────────────────
-    PB  = _pb_value(req)
-    rs  = _rs_value(req)
-    pta = PROBABILIDADE_PTA.get(req.pta_tipo, 1.0)
-    te  = _TE.get(req.lf_tipo, TipoEstrutura.OUTROS)
-    LF_global = LF_L1_POR_ESTRUTURA.get(te, 1e-2)
-
-    # ── Zonas ─────────────────────────────────────────────────────────────────
-    zonas = req.zonas if req.zonas else [ZonaWizardInput(id="ZS01", nome="Zona 01")]
-
-    R1_total = 0.0
-    F_total  = 0.0
-    zonas_resultado: list[dict] = []
-    comp_global = {k: 0.0 for k in ["RA","RB","RC","RM","RU","RV","RW","RZ"]}
-
-    for zona in zonas:
-        tp  = _TP.get(zona.rt, TipoPiso.MARMORE_CERAMICA)
-        ri  = _RI.get(zona.rf, RiscoIncendio.NORMAL)
-        rp  = _RP.get(zona.rp, ProvidenciasIncendio.NENHUMA)
-        pe  = _PE.get(zona.hz, PerigoEspecial.NENHUM)
-        pspd_np = _NP.get(zona.pspd, NivelProtecao.NENHUM)
-
-        te_z = _TE.get(zona.lf_tipo, te) if zona.lf_tipo else te
-        nt_z = max(req.nt, zona.nz) if req.nt > 0 else max(1, zona.nz)
-
-        # Probabilidades
-        ent_prob = EntradaProbabilidades(
-            spda_nivel=NivelProtecao.NENHUM,
-            dps_coordenados_nivel=pspd_np,
-            avisos_alerta=(req.pta_tipo == "AVISOS_ALERTA"),
-            isolacao_eletrica_descida=(req.pta_tipo == "ISOLACAO_ELETRICA_DESCIDA"),
-            malha_equipotencializacao_solo=(req.pta_tipo == "MALHA_EQUIPOTENCIALIZACAO_SOLO"),
-            descida_natural_estrutura_continua=(req.pta_tipo == "ESTRUTURA_METALICA_DESCIDA_NATURAL"),
-            restricoes_fisicas_fixas=(req.pta_tipo == "RESTRICOES_FISICAS_FIXAS"),
-        )
-        probs = calcular_todas_probabilidades(ent_prob)
-        # Override PB com valor calculado (inclui casos especiais)
-        from dataclasses import replace as dc_replace
-        probs = dc_replace(probs, PB=PB)
-
-        # Perdas L1
-        ent_perdas = EntradaPerdas(
-            tipo_estrutura=te_z,
-            tipo_piso=tp,
-            risco_incendio=ri,
-            providencias_incendio=rp,
-            perigo_especial=pe,
-            tipo_construcao=_TC.get(req.rs_tipo, TipoConstrucao.ALVENARIA_CONCRETO),
-            risco_vida_imediato_por_falha=False,
-            numero_pessoas_zona=zona.nz,
-            numero_pessoas_total=nt_z,
-            horas_ano_presenca=zona.tz_horas_ano,
-        )
-        perdas = calcular_perdas_L1(ent_perdas)
-
-        # Componentes de risco
-        ent_comp = EntradaComponentes(
-            ND=ND, NM=NM, NL=NL_total, NI=NI_total, NDJ=NDJ_total,
-            PA=probs.PA, PB=probs.PB, PC=probs.PC, PM=probs.PM,
-            PU=probs.PU, PV=probs.PV, PW=probs.PW, PZ=probs.PZ,
-            LA=perdas.LA, LB=perdas.LB, LC=perdas.LC, LM=perdas.LM,
-            LU=perdas.LU, LV=perdas.LV, LW=perdas.LW, LZ=perdas.LZ,
-        )
-        comp = calcular_componentes(ent_comp)
-        R1_zona = comp.RA+comp.RB+comp.RC+comp.RM+comp.RU+comp.RV+comp.RW+comp.RZ
-
-        # Frequência F
-        F_zona = 0.0
-        if zona.habilitar_f:
-            freq_result = calcular_frequencia_a_partir_de_probabilidades(
-                ND, NM, NL_total, NI_total, NDJ_total, probs,
-            )
-            F_zona = freq_result.F_total
-
-        # Contribuição por linha
-        contrib = []
-        for le in linhas_ev:
-            ent_l = EntradaComponentes(
-                ND=0, NM=0, NL=le["NL"], NI=le["NI"], NDJ=le["NDJ"],
-                PA=probs.PA, PB=probs.PB, PC=probs.PC, PM=probs.PM,
-                PU=probs.PU, PV=probs.PV, PW=probs.PW, PZ=probs.PZ,
-                LA=perdas.LA, LB=perdas.LB, LC=perdas.LC, LM=perdas.LM,
-                LU=perdas.LU, LV=perdas.LV, LW=perdas.LW, LZ=perdas.LZ,
-            )
-            cl = calcular_componentes(ent_l)
-            contrib.append({
-                "nome": le["nome"], "tipo": le["tipo"],
-                "RU": cl.RU, "RV": cl.RV, "RW": cl.RW, "RZ": cl.RZ,
-                # Frequências parciais conforme Tabela 7: FV usa PEB, não PV.
-                "FV": (le["NL"] + le["NDJ"]) * probs.PEB,
-                "FW": (le["NL"] + le["NDJ"]) * probs.PW,
-                "FZ": le["NI"] * probs.PZ,
-            })
-
-        for k, v in {"RA":comp.RA,"RB":comp.RB,"RC":comp.RC,"RM":comp.RM,
-                     "RU":comp.RU,"RV":comp.RV,"RW":comp.RW,"RZ":comp.RZ}.items():
-            comp_global[k] += v
-
-        R1_total += R1_zona
-        F_total  += F_zona
-
+    zonas_resultado = []
+    for zin, zout in zip(calc_req.zonas, calc.zonas):
+        tz_h = min(zin.tz_valor if zin.tz_mode == "h_ano" else zin.tz_valor * 365, 8760.0)
+        fp = (zin.nz / max(calc_req.estrutura.nt, 1)) * (tz_h / 8760.0)
         zonas_resultado.append({
-            "id": zona.id, "nome": zona.nome,
-            "R1": R1_zona, "F": F_zona, "FT": zona.sistema_interno_ft,
+            "id": zout.id,
+            "nome": zout.nome,
+            "R1": zout.R1,
+            "R3": zout.R3,
+            "R4": zout.R4,
+            "F": zout.F,
+            "FT": zin.ft_sistema,
             "componentes": {
-                "RA":comp.RA,"RB":comp.RB,"RC":comp.RC,"RM":comp.RM,
-                "RU":comp.RU,"RV":comp.RV,"RW":comp.RW,"RZ":comp.RZ,
+                "RA": zout.RA,
+                "RB": zout.RB,
+                "RC": zout.RC,
+                "RM": zout.RM,
+                "RU": zout.RU,
+                "RV": zout.RV,
+                "RW": zout.RW,
+                "RZ": zout.RZ,
+            },
+            "probabilidades": {
+                "PA": calc_req.estrutura.pta * calc_req.estrutura.pb,
+                "PB": calc_req.estrutura.pb,
+                "PC": zout.PC_calc,
+                "PM": zout.PM_calc,
+                "PMS": zout.PMS_calc,
+                "KS1": zout.KS1_calc,
+                "KS2": zout.KS2_calc,
+                "KS4": zout.KS4_calc,
+                "PSPD": zin.pspd,
             },
             "perdas": {
-                "LA":perdas.LA,"LB":perdas.LB,"LC":perdas.LC,"LO":0.0,
-                "rf":0.0,"rp":0.0,"rt":0.0,"fp":zona.tz_horas_ano/8760,"rS":rs,
+                "LA": zout.LA,
+                "LB": zout.LB,
+                "LC": zout.LC,
+                "fp": fp,
+                "rS": FATOR_RS[_enum_member(TipoConstrucao, calc_req.estrutura.tipo_construcao, TipoConstrucao.ALVENARIA_CONCRETO)],
+                "FB": zout.FB,
+                "FC": zout.FC,
+                "FM": zout.FM,
+                "FV": zout.FV,
+                "FW": zout.FW,
+                "FZ": zout.FZ,
             },
-            "contribuicao_linhas": contrib,
+            "contribuicao_linhas": [c.model_dump() for c in zout.linhas_contrib],
         })
 
-    # ── Avaliação ─────────────────────────────────────────────────────────────
     RT = 1e-5
-    FT_global = min((z.sistema_interno_ft for z in zonas if z.habilitar_f), default=0.1)
-    atende_R1 = R1_total <= RT
-    atende_F  = F_total  <= FT_global
-
-    # Componente dominante
-    dom = max(comp_global, key=lambda k: comp_global[k])
-    dom_msgs = {
-        "RB": "RB domina — verifique NP do SPDA, DPS Classe I, rf e rp.",
-        "RM": "RM domina — verifique blindagem espacial e DPS coordenados.",
-        "RW": "RW domina — verifique blindagem da linha e DPS na entrada.",
-        "RC": "RC domina — instale DPS coordenados NP I e blindagem espacial.",
-        "RU": "RU domina — verifique PTU e ligações equipotenciais.",
-        "RV": "RV domina — DPS Classe I e blindagem da linha exterior.",
-        "RZ": "RZ domina — DPS internos e blindagem da linha.",
-        "RA": "RA domina — avisos de alerta e malha equipotencial.",
-    }
-    recomendacoes = []
+    atende_R1 = calc.R1_global <= RT
+    recomendacoes: list[str] = []
     if not atende_R1:
-        recomendacoes.append(
-            f"R1={R1_total:.2e} > RT={RT:.0e}: Adote medidas de proteção. "
-            + dom_msgs.get(dom, "")
-        )
-    if not atende_F:
-        recomendacoes.append(
-            f"F={F_total:.2e} > FT={FT_global:.0e}: Verifique SPDA, DPS, blindagem espacial."
-        )
+        recomendacoes.append(f"R1={calc.R1_global:.2e} > RT={RT:.0e}: revisar medidas de proteção; componente dominante: {dom}.")
+    if not calc.F_atende:
+        recomendacoes.append("F acima do FT em uma ou mais zonas: verificar SPDA, DPS coordenados, blindagem/roteamento de linhas e ZPR0A.")
 
     return {
-        "R1_total": R1_total,
-        "F_total":  F_total,
-        "R3_total": 0.0,
+        "R1_total": calc.R1_global,
+        "F_total": calc.F_global,
+        "R3_total": calc.R3_global,
+        "R4_total": calc.R4_global,
         "RT": RT,
-        "FT_global": FT_global,
+        "FT_global": calc.FT_global,
         "atende_R1": atende_R1,
-        "atende_F":  atende_F,
-        "areas": {"AD": AD, "AM": AM, "AL": sum(e["AL"] for e in linhas_ev), "AI": sum(e["AI"] for e in linhas_ev)},
-        "eventos": {
-            "ND": ND, "NM": NM,
-            "por_linha": [
-                {"nome": e["nome"], "tipo": e["tipo"],
-                 "AL": e["AL"], "AI": e["AI"],
-                 "NL": e["NL"], "NI": e["NI"], "NDJ": e["NDJ"]}
-                for e in linhas_ev
-            ],
-        },
+        "atende_F": calc.F_atende,
+        "areas": {"AD": calc.AD, "AM": calc.AM, "AL": calc.AL, "AI": calc.AI},
+        "eventos": {"ND": calc.ND, "NM": calc.NM, "por_linha": linhas_eventos},
         "estrutura": {
-            "L": req.L, "W": req.W, "H": req.H, "Hp": req.Hp,
-            "CD": CD, "PB": PB, "rS": rs, "nt": req.nt, "NG": req.NG,
-            "AD": AD, "ND": ND, "AM": AM, "NM": NM,
-            "AL": sum(e["AL"] for e in linhas_ev), "AI": sum(e["AI"] for e in linhas_ev),
+            "L": req.L,
+            "W": req.W,
+            "H": req.H,
+            "Hp": req.Hp,
+            "CD": _CD_MAP.get(req.localizacao, 1.0),
+            "PB": calc_req.estrutura.pb,
+            "PA": calc_req.estrutura.pta * calc_req.estrutura.pb,
+            "rS": FATOR_RS[_enum_member(TipoConstrucao, calc_req.estrutura.tipo_construcao, TipoConstrucao.ALVENARIA_CONCRETO)],
+            "nt": req.nt,
+            "NG": req.NG,
+            "AD": calc.AD,
+            "ND": calc.ND,
+            "AM": calc.AM,
+            "NM": calc.NM,
+            "AL": calc.AL,
+            "AI": calc.AI,
         },
         "zonas_resultado": zonas_resultado,
         "componentes_globais": comp_global,
         "dominante": dom,
         "recomendacoes": recomendacoes,
+        "calc_unificado": calc.model_dump(),
     }
+
+
+@router.post("/analise-risco/wizard")
+async def calcular_wizard(req: WizardRequest) -> dict[str, Any]:
+    """
+    Adaptador do wizard legado para o motor central /calcular.
+    """
+    calc_req = _build_calc_request(req)
+    calc = calcular_pda(calc_req)
+    return _wizard_response(req, calc_req, calc)

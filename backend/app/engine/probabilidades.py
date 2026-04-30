@@ -11,14 +11,13 @@ aqui em valores de probabilidade conforme as Tabelas B.1 a B.8.
 from dataclasses import dataclass
 
 from app.nbr5419.enums import NivelProtecao
+from app.nbr5419.parte2_linhas import calcular_pld_tabela_b8, calcular_pli_tabela_b9
 from app.nbr5419.parte2_tabelas import (
     FATOR_CLD,
     PROBABILIDADE_PB,
     PROBABILIDADE_PB_CAPTACAO_NP1_ESTRUTURA_CONTINUA,
     PROBABILIDADE_PB_COBERTURA_METALICA_ESTRUTURA_CONTINUA,
     PROBABILIDADE_PEB,
-    PROBABILIDADE_PLD,
-    PROBABILIDADE_PLI,
     PROBABILIDADE_PSPD,
     PROBABILIDADE_PTA,
 )
@@ -48,6 +47,7 @@ class EntradaProbabilidades:
 
     # Características da linha elétrica (Tabela B.4 e B.8)
     tipo_roteamento_linha: str = "AEREO_NAO_BLINDADO"
+    tipo_linha: str = "ENERGIA"  # ENERGIA | SINAL — Tabela B.9
     tensao_UW_kV: float = 2.5
 
     # MPS para redução de PM (NBR 5419-4) — blindagens, roteamento etc.
@@ -121,17 +121,13 @@ def calcular_PM(ent: EntradaProbabilidades) -> float:
 
 
 def _PLD(roteamento: str, UW_kV: float) -> float:
-    """Tabela B.8 — busca o UW tabelado mais próximo."""
-    chaves_UW = [0.35, 0.5, 1.0, 1.5, 2.5, 4.0, 6.0]
-    UW_mais_proximo = min(chaves_UW, key=lambda u: abs(u - UW_kV))
-    return PROBABILIDADE_PLD.get((roteamento, UW_mais_proximo), 1.0)
+    """Tabela B.8 — consulta exata do UW tabelado."""
+    return calcular_pld_tabela_b8(roteamento, UW_kV)
 
 
 def _PLI(tipo_linha: str, UW_kV: float) -> float:
-    """Tabela B.9 — PLI depende do tipo de linha (ENERGIA/SINAL) e do UW."""
-    chaves_UW = [0.35, 0.5, 1.0, 1.5, 2.5, 4.0, 6.0]
-    UW_mais_proximo = min(chaves_UW, key=lambda u: abs(u - UW_kV))
-    return PROBABILIDADE_PLI.get((tipo_linha, UW_mais_proximo), 1.0)
+    """Tabela B.9 — consulta exata por tipo de linha (ENERGIA/SINAL) e UW."""
+    return calcular_pli_tabela_b9(tipo_linha, UW_kV)
 
 
 def calcular_PU(ent: EntradaProbabilidades) -> float:

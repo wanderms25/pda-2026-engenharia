@@ -253,7 +253,7 @@ KI_POR_NP: dict[NivelProtecao, float] = {
     NivelProtecao.I:   0.08,
     NivelProtecao.II:  0.06,
     NivelProtecao.III: 0.04,
-    NivelProtecao.IV:  0.02,
+    NivelProtecao.IV:  0.04,
 }
 
 # Tabela 12 — Coeficiente km por meio isolante

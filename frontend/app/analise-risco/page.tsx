@@ -2,6 +2,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { API_BASE_URL } from "@/lib/config";
 import { gerarLaudoPDF, gerarLaudoWord, calcularPDA, type AnaliseRiscoRequest, type CalcResponse } from "@/lib/api";
+import { ANALISE_RISCO_RESULT_STORAGE_KEY } from "@/lib/dimensionamento-risco";
+import { gerarPlanoAprovacaoAnaliseRisco } from "@/lib/recomendacoes-aprovacao";
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   ClipboardList, Zap, Layers, BarChart2, FileText,
@@ -119,10 +121,11 @@ const RS_LINE_OPT = [
   { v:"BLINDADO_1_5_OHM_KM",     l:"Blindada interligada — 1 < Rs ≤ 5 Ω/km (Tab. B.8)" },
   { v:"BLINDADO_MENOS_1_OHM_KM", l:"Blindada interligada — Rs ≤ 1 Ω/km (Tab. B.8)" },
 ];
-const UW_OPT = [
-  { v:"0.35",l:"0.35 kV"},{ v:"0.5",l:"0.5 kV"},{ v:"1.0",l:"1 kV"},
-  { v:"1.5",l:"1.5 kV"},{ v:"2.5",l:"2.5 kV"},{ v:"4.0",l:"4 kV"},{ v:"6.0",l:"6 kV"},
+const UW_LINHA_OPT = [
+  { v:"1.0",l:"1 kV"},{ v:"1.5",l:"1.5 kV"},{ v:"2.5",l:"2.5 kV"},
+  { v:"4.0",l:"4 kV"},{ v:"6.0",l:"6 kV"},
 ];
+const UW_OPT = UW_LINHA_OPT;
 const STATUS_OPT = [
   { v:"",             l:"Selecionar status" },
   { v:"RASCUNHO",    l:"Rascunho" },
@@ -271,11 +274,12 @@ const PLD_MAP: Record<string,Record<string,number>> = {
   BLINDADO_1_5_OHM_KM:      {"0.35":1,   "0.5":1,    "1.0":0.9, "1.5":0.8, "2.5":0.6,  "4.0":0.3,  "6.0":0.1 },
   BLINDADO_MENOS_1_OHM_KM:  {"0.35":1,   "0.5":0.85, "1.0":0.6, "1.5":0.4, "2.5":0.2,  "4.0":0.04, "6.0":0.02},
 };
-// Tabela B.9 — PLI: probabilidade por tipo de linha e tensão UW
-// Para UW < 1 kV (0.35, 0.5) a norma não tabela PLI — usar 1 (pior caso)
+// Tabela B.9 — PLI: probabilidade por tipo de linha e tensão UW.
+// A Tabela B.9 não possui colunas 0.35 e 0.5 kV; por isso, o campo de UW da linha
+// usa apenas o domínio comum do cálculo completo PLD/PLI: 1, 1.5, 2.5, 4 e 6 kV.
 const PLI_MAP: Record<string,Record<string,number>> = {
-  BT_SINAL:     {"0.35":1, "0.5":1, "1.0":1, "1.5":0.6,  "2.5":0.3,  "4.0":0.16, "6.0":0.1  },
-  AT_COM_TRAFO: {"0.35":1, "0.5":1, "1.0":1, "1.5":0.5,  "2.5":0.2,  "4.0":0.08, "6.0":0.04 },
+  ENERGIA: {"1.0":1, "1.5":0.6, "2.5":0.3, "4.0":0.16, "6.0":0.1},
+  SINAL:   {"1.0":1, "1.5":0.5, "2.5":0.2, "4.0":0.08, "6.0":0.04},
 };
 const LF_MAP: Record<string,number> = { HOSPITAL:0.1,INDUSTRIAL:0.02,ESCRITORIO:0.01,ENTRETENIMENTO_PUBLICO:0.05,RISCO_EXPLOSAO:0.1,OUTROS:0.01 };
 const RF_MAP: Record<string,number> = { "1":1,"0.1a":0.1,"0.001a":0.001,"0.1b":0.1,"0.01":0.01,"0.001b":0.001,"0":0 };
@@ -314,6 +318,96 @@ interface Zona {
 function novoTrecho(id:string):TrechoSL { return {id,comprimento_m:1000,instalacao_ci:"ENTERRADO",tipo_ct:"BT_SINAL",ambiente_ce:"URBANO",blindagem_rs:"ENTERRADO_NAO_BLINDADO",uw_kv:"1.5"}; }
 function novaLinha(id:string,nome:string,tipo:string):Linha { return {id,nome,tipo_linha:tipo,ptu:"AVISOS_ALERTA",peb:"NENHUM",cld_cli:tipo==="SINAL"?"INTERFACE_ISOLANTE_PROTEGIDA_POR_DPS":"AEREO_NAO_BLINDADO",trechos:[novoTrecho("T01")],adj:{l_adj:0,w_adj:0,h_adj:0,cdj:"CERCADA_MESMA_ALTURA",ct_adj:"BT_SINAL"}}; }
 function novaZona(id:string):Zona { return {id,nome:`Zona ${id}`,blindagem:false,wm1:20,wm2:0,ks3e:"1",ks3s:"1",pspd:"0.01",uw_equip:"1.0",hz:"1",nz:100,tz_mode:"h_ano",tz_valor:2920,lf_custom:false,lf_tipo:"ESCRITORIO",lo:"0",rt:"0.001",rf:"0.001b",rp:"0.5",tem_l3:false,val_pat:10,val_edif_l3:12,habilitar_f:true,ft_sistema:"0.1",zpr0a:false,habilitar_l4:false,tipo_l4:"USAR_TIPO_L1",l4_base_perdas:"ANEXO_D",l4_usar_relacoes_valor:false,val_animais:0,val_edif_l4:12,val_conteudo:20,val_sistemas:0}; }
+
+
+type CalcPayloadParams = {
+  L:number; W:number; H:number; Hp:number; NG:number;
+  loc:string; pb:string; pta:string; nt:number; lfEst:string; rsEst:string;
+  zonas:Zona[]; linhas:Linha[];
+};
+
+function montarCalcPayload(p: CalcPayloadParams) {
+  const resolvedLF = (z:Zona) =>
+    z.lf_custom ? (LF_MAP[z.lf_tipo]??0.01) : (LF_MAP[p.lfEst]??0.01);
+  const rfNum = (rf:string):number => RF_MAP[rf]??0.01;
+  const cpL3 = (z:Zona) => z.val_pat / Math.max(z.val_edif_l3, 1);
+
+  return {
+    estrutura: {
+      L: p.L,
+      W: p.W,
+      H: p.H,
+      Hp: p.Hp,
+      NG: p.NG,
+      loc: p.loc,
+      pb: PB_MAP[p.pb] ?? 1,
+      pta: PTA_MAP[p.pta] ?? 1,
+      nt: p.nt,
+      tipo_estrutura: p.lfEst,
+      tipo_construcao: ({"ALVENARIA_CONCRETO":"ALV_CONCRETO","MADEIRA":"MADEIRA"} as Record<string,string>)[p.rsEst]||"ALV_CONCRETO",
+    },
+    zonas: p.zonas.map(z => ({
+      id: z.id,
+      nome: z.nome,
+      nz: z.nz,
+      tz_mode: z.tz_mode,
+      tz_valor: z.tz_valor,
+      rt: parseFloat(z.rt) || 0.001,
+      rf: rfNum(z.rf),
+      rp: parseFloat(z.rp) || 0.5,
+      hz: z.hz==="5b" ? 5 : z.hz==="10b" ? 10 : parseFloat(z.hz) || 1,
+      lf_valor: resolvedLF(z),
+      lf_custom: z.lf_custom,
+      lo: parseFloat(z.lo) || 0,
+      tem_lo: (parseFloat(z.lo)||0) > 0,
+      pspd: parseFloat(z.pspd) || 0.01,
+      ks3: Math.max(parseFloat(z.ks3e)||1, parseFloat(z.ks3s)||1),
+      ks3_energia: parseFloat(z.ks3e) || 1,
+      ks3_sinal: parseFloat(z.ks3s) || 1,
+      blindagem: z.blindagem,
+      wm1: z.wm1,
+      wm2: z.wm2,
+      uw_equip: parseFloat(z.uw_equip) || 1.0,
+      tem_l3: z.tem_l3,
+      cp_l3: cpL3(z),
+      habilitar_f: z.habilitar_f,
+      ft_sistema: parseFloat(z.ft_sistema) || 0.1,
+      zpr0a: z.zpr0a,
+      habilitar_l4: z.habilitar_l4,
+      tipo_estrutura_l4: z.tipo_l4 || "USAR_TIPO_L1",
+      l4_base_perdas: "ANEXO_D",
+      l4_usar_relacoes_valor: Boolean(z.l4_usar_relacoes_valor),
+      val_animais: Number.isFinite(Number(z.val_animais)) ? Number(z.val_animais) : 0,
+      val_edificio: Number.isFinite(Number(z.val_edif_l4)) ? Number(z.val_edif_l4) : 0,
+      val_conteudo: Number.isFinite(Number(z.val_conteudo)) ? Number(z.val_conteudo) : 0,
+      val_sistemas: Number.isFinite(Number(z.val_sistemas)) ? Number(z.val_sistemas) : 0,
+    })),
+    linhas: p.linhas.map(l => ({
+      id: l.id,
+      nome: l.nome,
+      tipo_linha: l.tipo_linha,
+      ptu: l.ptu,
+      peb: l.peb,
+      cld_cli: l.cld_cli,
+      trechos: l.trechos.map(t => ({
+        id: t.id,
+        comprimento_m: t.comprimento_m,
+        instalacao_ci: t.instalacao_ci,
+        tipo_ct: t.tipo_ct,
+        ambiente_ce: t.ambiente_ce,
+        blindagem_rs: t.blindagem_rs,
+        uw_kv: parseFloat(t.uw_kv) || 1.5,
+      })),
+      adj: {
+        l_adj: l.adj.l_adj,
+        w_adj: l.adj.w_adj,
+        h_adj: l.adj.h_adj,
+        cdj: l.adj.cdj,
+        ct_adj: l.adj.ct_adj,
+      },
+    })),
+  };
+}
 
 // ─── UI helpers ───────────────────────────────────────────────────────────────
 const FL = "text-[11px] text-gray-400 font-medium uppercase tracking-wide mb-1 flex items-center gap-1";
@@ -541,9 +635,12 @@ export default function AnaliseRiscoPage() {
   const [calcError,setCalcError]=useState<string|null>(null);
   // Ref para debounce do cálculo
   const calcTimerRef=useRef<ReturnType<typeof setTimeout>|null>(null);
+  const calcRequestSeqRef=useRef(0);
+  const calcAbortRef=useRef<AbortController|null>(null);
   const saveTimerRef=useRef<ReturnType<typeof setTimeout>|null>(null);
   const pageRootRef=useRef<HTMLDivElement|null>(null);
   const contentScrollRef=useRef<HTMLDivElement|null>(null);
+  const [confirmClearOpen,setConfirmClearOpen]=useState(false);
 
   // Mantém esta tela com apenas um ponto de rolagem.
   // O scroll passa a ficar no contentScrollRef, evitando scroll duplo/vazio no body/main.
@@ -634,6 +731,26 @@ export default function AnaliseRiscoPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[]);
 
+  // Salva o último resultado calculado para a aba Dimensionamento usar como referência.
+  useEffect(()=>{
+    if(typeof window==='undefined') return;
+    try {
+      if(!calc) return;
+      localStorage.setItem(ANALISE_RISCO_RESULT_STORAGE_KEY, JSON.stringify({
+        salvo_em: new Date().toISOString(),
+        obra, nomeAn, resp, art,
+        R1_global: calc.R1_global,
+        R3_global: calc.R3_global,
+        R4_global: calc.R4_global,
+        F_global: calc.F_global,
+        FT_global: calc.FT_global,
+        F_atende: calc.F_atende,
+        conforme_norma: calc.conforme_norma,
+        zonas_fora_ft: calc.zonas_fora_ft,
+      }));
+    } catch(e){ console.warn('[PDA] Erro ao salvar resultado para dimensionamento:',e); }
+  },[calc,obra,nomeAn,resp,art]);
+
   // Salva estado no localStorage (debounce 1.5s para não sobrecarregar)
   useEffect(()=>{
     if(typeof window==='undefined') return;
@@ -657,101 +774,63 @@ export default function AnaliseRiscoPage() {
 
   // ── Constrói payload para o endpoint /calcular ──────────────────────────────
   function buildCalcPayload() {
-    // Resolve LF_valor para cada zona
-    const resolvedLF = (z:Zona) =>
-      z.lf_custom ? (LF_MAP[z.lf_tipo]??0.01) : (LF_MAP[lfEst]??0.01);
-    // Resolve RF numérico
-    const rfNum = (rf:string):number => RF_MAP[rf]??0.01;
-    // Resolve Cp L3 = val_pat / val_edif_l3
-    const cpL3 = (z:Zona) => z.val_pat / Math.max(z.val_edif_l3, 1);
-
-    return {
-      estrutura: {
-        L, W, H, Hp, NG,
-        loc,
-        pb: PB_MAP[pb] ?? 1,
-        pta: PTA_MAP[pta] ?? 1,
-        nt,
-        tipo_estrutura: lfEst,                          // LF/LO por tipo (Tab. C.2)
-        tipo_construcao: ({"ALVENARIA_CONCRETO":"ALV_CONCRETO","MADEIRA":"MADEIRA"} as Record<string,string>)[rsEst]||"ALV_CONCRETO",  // rs (Tab. C.7)
-      },
-      zonas: zonas.map(z => ({
-        id: z.id,
-        nome: z.nome,
-        nz: z.nz,
-        tz_mode: z.tz_mode,
-        tz_valor: z.tz_valor,
-        rt: parseFloat(z.rt) || 0.001,
-        rf: rfNum(z.rf),
-        rp: parseFloat(z.rp) || 0.5,
-        hz: z.hz==="5b" ? 5 : z.hz==="10b" ? 10 : parseFloat(z.hz) || 1,
-        lf_valor: resolvedLF(z),
-        lf_custom: z.lf_custom,                        // True = usa lf_valor da zona
-        lo: parseFloat(z.lo) || 0,
-        tem_lo: (parseFloat(z.lo)||0) > 0,             // ativa LC/RC/RM
-        pspd: parseFloat(z.pspd) || 0.01,
-        ks3: Math.max(parseFloat(z.ks3e)||1, parseFloat(z.ks3s)||1),  // compatibilidade com backend antigo
-        ks3_energia: parseFloat(z.ks3e) || 1,
-        ks3_sinal: parseFloat(z.ks3s) || 1,
-        
-        blindagem: z.blindagem,
-        
-        wm1: z.wm1,            // malha/descidas externa; blindagem interna não altera KS1
-        wm2: z.wm2,            // blindagem espacial interna (m) → KS2 = 0.12×wm2
-        uw_equip: parseFloat(z.uw_equip) || 1.0, // UW dos equipamentos internos (Tab. B.4/KS4)
-        tem_l3: z.tem_l3,
-        cp_l3: cpL3(z),
-        habilitar_f: z.habilitar_f,
-        ft_sistema: parseFloat(z.ft_sistema) || 0.1,
-        zpr0a: z.zpr0a,
-        habilitar_l4: z.habilitar_l4,
-        // L4 normativo: Anexo D, Tabelas D.1/D.2.
-        tipo_estrutura_l4: z.tipo_l4 || "USAR_TIPO_L1",
-        l4_base_perdas: "ANEXO_D",
-        l4_usar_relacoes_valor: Boolean(z.l4_usar_relacoes_valor),
-        val_animais: Number.isFinite(Number(z.val_animais)) ? Number(z.val_animais) : 0,
-        val_edificio: Number.isFinite(Number(z.val_edif_l4)) ? Number(z.val_edif_l4) : 0,
-        val_conteudo: Number.isFinite(Number(z.val_conteudo)) ? Number(z.val_conteudo) : 0,
-        val_sistemas: Number.isFinite(Number(z.val_sistemas)) ? Number(z.val_sistemas) : 0,
-      })),
-      linhas: linhas.map(l => ({
-        id: l.id,
-        nome: l.nome,
-        tipo_linha: l.tipo_linha,
-        ptu: l.ptu,
-        peb: l.peb,
-        cld_cli: l.cld_cli,
-        trechos: l.trechos.map(t => ({
-          id: t.id,
-          comprimento_m: t.comprimento_m,
-          instalacao_ci: t.instalacao_ci,
-          tipo_ct: t.tipo_ct,
-          ambiente_ce: t.ambiente_ce,
-          blindagem_rs: t.blindagem_rs,
-          uw_kv: parseFloat(t.uw_kv) || 1.5,
-        })),
-        adj: {
-          l_adj: l.adj.l_adj,
-          w_adj: l.adj.w_adj,
-          h_adj: l.adj.h_adj,
-          cdj: l.adj.cdj,
-          ct_adj: l.adj.ct_adj,
-        },
-      })),
-    };
+    return montarCalcPayload({
+      L,
+      W,
+      H,
+      Hp,
+      NG,
+      loc,
+      pb,
+      pta,
+      nt,
+      lfEst,
+      rsEst,
+      zonas,
+      linhas,
+    });
   }
 
-  // Chama o backend para calcular — debounce de 600ms feito via useEffect
-  async function triggerCalc() {
-    setCalcLoading(true); setCalcError(null);
+  // Chama o backend para calcular — debounce de 600ms feito via useEffect.
+  // Usa sequência + AbortController para evitar que uma resposta antiga sobrescreva
+  // o cálculo mais recente. Isso é importante ao aplicar cenários de exemplo,
+  // pois vários estados são alterados de uma vez e podem existir requisições em voo.
+  async function triggerCalc(payloadOverride?: ReturnType<typeof montarCalcPayload>) {
+    const requestId = calcRequestSeqRef.current + 1;
+    calcRequestSeqRef.current = requestId;
+
+    if (calcAbortRef.current) calcAbortRef.current.abort();
+    const controller = new AbortController();
+    calcAbortRef.current = controller;
+
+    setCalcLoading(true);
+    setCalcError(null);
+
     try {
-      const result = await calcularPDA(buildCalcPayload());
+      const result = await calcularPDA(payloadOverride ?? buildCalcPayload(), controller.signal);
+      if (requestId !== calcRequestSeqRef.current) return;
       setCalc(result);
       // Invalida preview PDF pois os dados mudaram
       if(pdfPreviewUrl){ URL.revokeObjectURL(pdfPreviewUrl); setPdfPreviewUrl(null); }
-    } catch(e:any) { setCalcError(e?.message||"Erro ao calcular"); }
-    finally { setCalcLoading(false); }
+    } catch(e:any) {
+      if (e?.name === "AbortError") return;
+      if (requestId !== calcRequestSeqRef.current) return;
+      setCalcError(e?.message||"Erro ao calcular");
+    }
+    finally {
+      if (requestId === calcRequestSeqRef.current) {
+        setCalcLoading(false);
+        calcAbortRef.current = null;
+      }
+    }
   }
+
+  useEffect(() => {
+    return () => {
+      if (calcAbortRef.current) calcAbortRef.current.abort();
+      if (calcTimerRef.current) clearTimeout(calcTimerRef.current);
+    };
+  }, []);
 
     // Auto-calcula no backend quando dados mudam (debounce 600ms)
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -763,6 +842,17 @@ export default function AnaliseRiscoPage() {
     return ()=>{ if(calcTimerRef.current) clearTimeout(calcTimerRef.current); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[L,W,H,Hp,ng,ngMan,ngManV,loc,pb,pta,nt,lfEst,rsEst,JSON.stringify(zonas),JSON.stringify(linhas)]);
+
+  function planoAprovacaoAtual() {
+    return gerarPlanoAprovacaoAnaliseRisco({
+      calc,
+      zonas: zonas as unknown as Array<Record<string, unknown>>,
+      linhas: linhas as unknown as Array<Record<string, unknown>>,
+      dimensoes: { L, W, H, Hp },
+      pb,
+      pta,
+    });
+  }
 
     // Build AnaliseRiscoRequest — enums mapeados 1:1 com backend (enums.py)
   function buildPdfRequest():AnaliseRiscoRequest {
@@ -961,15 +1051,24 @@ export default function AnaliseRiscoPage() {
   // Zona manipulation
   function addZona(){const id=String(zonas.length+1).padStart(2,"0");setZonas(p=>[...p,novaZona(id)]);setZonaAtiva(id);}
 
+  function solicitarLimpezaDados(){
+    setConfirmClearOpen(true);
+  }
+
   function limparDados(){
-    if(!confirm("Limpar todos os dados da análise? Esta ação não pode ser desfeita.")) return;
-    try { localStorage.removeItem(STORAGE_KEY); } catch(_e){}
+    try { localStorage.removeItem(STORAGE_KEY); localStorage.removeItem(ANALISE_RISCO_RESULT_STORAGE_KEY); } catch(_e){}
+    if(saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    if(calcTimerRef.current) clearTimeout(calcTimerRef.current);
+    if(calcAbortRef.current) calcAbortRef.current.abort();
+    setConfirmClearOpen(false);
     setObra(""); setNomeAn(""); setResp(""); setStatusV(""); setArt(""); setEndV(""); setLatV(""); setLngV("");
     setUf("SP"); setMun(""); setNg(12); setNgMan(false); setNgManV(12);
     setL(50); setW(20); setH(15); setHp(0); setVidro(false); setLoc("CERCADA_MESMA_ALTURA");
     setPb("III:null"); setRsEst("ALVENARIA_CONCRETO"); setNt(120); setLfEst("OUTROS"); setPta("AVISOS_ALERTA");
     setLinhas([novaLinha("L01","Linha de Energia","ENERGIA"),novaLinha("L02","Linha de Sinal","SINAL")]);
-    setZonas([novaZona("01")]); setZonaAtiva("01"); setCalc(null);
+    setZonas([novaZona("01")]); setZonaAtiva("01"); setCalc(null); setCalcError(null); setCalcLoading(false);
+    if(pdfPreviewUrl){ URL.revokeObjectURL(pdfPreviewUrl); setPdfPreviewUrl(null); }
+    handleTabChange("exemplos");
   }
   function preencherCenarioExemploNormativo(blindagemAtiva:boolean){
     const linhasExemplo: Linha[] = [
@@ -988,7 +1087,28 @@ export default function AnaliseRiscoPage() {
     setUf("SP"); setMun("Cenário manual"); setNgMan(true); setNgManV(10); setNg(10);
     setL(40); setW(20); setH(10); setHp(0); setVidro(false); setLoc("CERCADA_MESMA_ALTURA");
     setPb("III:null"); setRsEst("ALVENARIA_CONCRETO"); setNt(100); setLfEst("ENTRETENIMENTO_PUBLICO"); setPta("AVISOS_ALERTA");
-    setLinhas(linhasExemplo); setZonas(zonasExemplo); setZonaAtiva("01"); setCalc(null); handleTabChange("analises");
+    setLinhas(linhasExemplo); setZonas(zonasExemplo); setZonaAtiva("01");
+
+    // Calcula imediatamente com o payload do cenário, sem depender da próxima
+    // renderização do React. Isso evita a tela de análise ficar em zero até
+    // alguma alteração manual disparar novo cálculo.
+    const payloadExemplo = montarCalcPayload({
+      L: 40,
+      W: 20,
+      H: 10,
+      Hp: 0,
+      NG: 10,
+      loc: "CERCADA_MESMA_ALTURA",
+      pb: "III:null",
+      pta: "AVISOS_ALERTA",
+      nt: 100,
+      lfEst: "ENTRETENIMENTO_PUBLICO",
+      rsEst: "ALVENARIA_CONCRETO",
+      zonas: zonasExemplo,
+      linhas: linhasExemplo,
+    });
+    triggerCalc(payloadExemplo);
+    handleTabChange("analises");
   }
 
   function delZona(id:string){if(zonas.length===1)return;const nz=zonas.filter(z=>z.id!==id);setZonas(nz);if(zonaAtiva===id)setZonaAtiva(nz[0].id);}
@@ -1038,7 +1158,7 @@ export default function AnaliseRiscoPage() {
             <svg className="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
             Calculando…
           </span>}
-          {calcError&&<span className="text-xs text-red-400 bg-red-900/20 border border-red-500/20 px-2 py-0.5 rounded-full cursor-pointer" onClick={triggerCalc}>⚠ {calcError} — clique para recalcular</span>}
+          {calcError&&<span className="text-xs text-red-400 bg-red-900/20 border border-red-500/20 px-2 py-0.5 rounded-full cursor-pointer" onClick={() => triggerCalc()}>⚠ {calcError} — clique para recalcular</span>}
           {TABS.map(({id,label,icon:Icon})=>{
             const active=tab===id;
             return <button key={id} onClick={()=>handleTabChange(id)}
@@ -1046,10 +1166,10 @@ export default function AnaliseRiscoPage() {
               <Icon className="w-4 h-4"/>{label}
             </button>;
           })}
-          <button onClick={limparDados} title="Limpar todos os dados da análise"
-            className="ml-auto flex items-center gap-1 text-xs text-gray-500 hover:text-red-400 border border-[#2a3555] hover:border-red-500/40 bg-[#0d1117] px-2.5 py-1 rounded-full transition-colors shrink-0">
+          <button onClick={solicitarLimpezaDados} title="Limpar todos os dados da análise"
+            className="ml-auto flex items-center gap-1 text-xs text-gray-400 hover:text-red-300 border border-[#2a3555] hover:border-red-500/40 bg-[#0d1117] px-2.5 py-1 rounded-full transition-colors shrink-0">
             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-            Limpar
+            Limpar tela
           </button>
         </div>
       </div>
@@ -1071,6 +1191,7 @@ export default function AnaliseRiscoPage() {
               <div className="flex flex-col sm:flex-row gap-3 mt-6">
                 <button onClick={()=>preencherCenarioExemploNormativo(false)} className="px-4 py-3 rounded-xl bg-gray-700 hover:bg-gray-600 text-white font-semibold shadow-lg">Preencher cenário SEM blindagem</button>
                 <button onClick={()=>preencherCenarioExemploNormativo(true)} className="px-4 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-lg">Preencher cenário COM blindagem</button>
+                <button onClick={solicitarLimpezaDados} className="px-4 py-3 rounded-xl border border-red-500/30 bg-red-950/20 hover:bg-red-900/30 text-red-200 font-semibold transition-colors">Limpar tela</button>
               </div>
               <div className="mt-6 grid md:grid-cols-2 gap-4 text-sm text-gray-300">
                 <div className="rounded-xl bg-[#111827] border border-[#2a3555] p-4">
@@ -1769,6 +1890,14 @@ export default function AnaliseRiscoPage() {
             {label:"RZ",value:RZ_g,color:"#84cc16",tooltip:"S4-D3: Falhas de sistemas por descarga próxima à linha"},
           ].filter(d=>d.value>0);
           const dominante=[...compDataR1].sort((a,b)=>b.value-a.value)[0];
+          const planoAprovacao = gerarPlanoAprovacaoAnaliseRisco({
+            calc,
+            zonas: zonas as unknown as Array<Record<string, unknown>>,
+            linhas: linhas as unknown as Array<Record<string, unknown>>,
+            dimensoes: { L, W, H, Hp },
+            pb,
+            pta,
+          });
           return (
           <div className="space-y-6 pb-8">
             {/* Veredicto global */}
@@ -1824,6 +1953,60 @@ export default function AnaliseRiscoPage() {
                   </div>
                 );
               })}
+            </div>
+
+            {/* Plano de adequação normativa para aprovação */}
+            <div className={`rounded-2xl border p-5 ${planoAprovacao.aprovado ? "bg-green-950/20 border-green-500/30" : "bg-amber-950/20 border-amber-500/30"}`}>
+              <div className="flex flex-col lg:flex-row lg:items-start gap-4 justify-between">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-2">
+                    <ShieldAlert className={`w-5 h-5 ${planoAprovacao.aprovado ? "text-green-300" : "text-amber-300"}`}/>
+                    <p className={`text-sm font-bold uppercase tracking-widest ${planoAprovacao.aprovado ? "text-green-300" : "text-amber-300"}`}>Recomendação para aprovação normativa</p>
+                  </div>
+                  <h3 className="text-lg font-bold text-white">{planoAprovacao.titulo}</h3>
+                  <p className="text-sm text-gray-400 mt-1 max-w-4xl">{planoAprovacao.resumo}</p>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs shrink-0">
+                  <div className="rounded-xl bg-[#0d1117] border border-[#24314f] px-3 py-2"><p className="text-gray-500">NP sugerido</p><p className="font-bold text-blue-300">NP {planoAprovacao.npRecomendado}</p></div>
+                  <div className="rounded-xl bg-[#0d1117] border border-[#24314f] px-3 py-2"><p className="text-gray-500">Método</p><p className="font-bold text-blue-300 capitalize">{planoAprovacao.metodoDimensionamento}</p></div>
+                  <div className="rounded-xl bg-[#0d1117] border border-[#24314f] px-3 py-2"><p className="text-gray-500">Malha máx.</p><p className="font-bold text-blue-300">{planoAprovacao.parametrosDimensionamento.malhaM[0]} × {planoAprovacao.parametrosDimensionamento.malhaM[1]} m</p></div>
+                  <div className="rounded-xl bg-[#0d1117] border border-[#24314f] px-3 py-2"><p className="text-gray-500">Descidas mín.</p><p className="font-bold text-blue-300">{planoAprovacao.parametrosDimensionamento.numeroMinimoDescidas}</p></div>
+                </div>
+              </div>
+
+              {planoAprovacao.componentesDominantes.length > 0 && (
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {planoAprovacao.componentesDominantes.map((c)=>(
+                    <span key={c.codigo} className="text-xs rounded-full bg-[#0d1117] border border-[#24314f] px-3 py-1 text-gray-300">
+                      <strong className="text-white">{c.codigo}</strong> {fmtE(c.valor)} · {c.percentualR1.toFixed(1)}% do R1
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-3">
+                {planoAprovacao.acoes.map((acao, idx)=>(
+                  <div key={`${acao.categoria}-${idx}`} className="rounded-xl border border-[#24314f] bg-[#0d1117] p-4">
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full ${acao.prioridade === "Obrigatória" ? "bg-red-900/50 text-red-300" : acao.prioridade === "Alta" ? "bg-amber-900/50 text-amber-300" : acao.prioridade === "Média" ? "bg-blue-900/50 text-blue-300" : "bg-green-900/50 text-green-300"}`}>{acao.prioridade}</span>
+                      <span className="text-[10px] text-gray-500">{acao.componentesAtacados.join(" · ")}</span>
+                    </div>
+                    <p className="font-bold text-white text-sm">{acao.categoria}</p>
+                    <p className="text-sm text-gray-300 mt-1">{acao.acao}</p>
+                    <p className="text-xs text-gray-500 mt-2">{acao.justificativa}</p>
+                    <p className="text-[11px] text-blue-300 mt-2">Efeito esperado: {acao.efeitoEsperado}</p>
+                  </div>
+                ))}
+              </div>
+
+              {planoAprovacao.observacoes.length > 0 && (
+                <div className="mt-4 rounded-xl border border-blue-500/20 bg-blue-950/20 px-4 py-3">
+                  <p className="text-xs font-bold uppercase tracking-widest text-blue-300 mb-2">Observações do dimensionamento</p>
+                  <ul className="list-disc pl-5 space-y-1 text-xs text-gray-300">
+                    {planoAprovacao.observacoes.map((obs, idx)=><li key={idx}>{obs}</li>)}
+                  </ul>
+                </div>
+              )}
             </div>
             {/* Gauges globais */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -2049,6 +2232,40 @@ export default function AnaliseRiscoPage() {
 
         </div>
       </div>
+
+      {confirmClearOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
+          <div className="w-full max-w-md rounded-2xl border border-[#24314f] bg-[#111827] shadow-2xl">
+            <div className="p-6 border-b border-[#1f2a44]">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-xl bg-red-500/10 border border-red-500/30 flex items-center justify-center shrink-0">
+                  <Trash2 className="w-5 h-5 text-red-300"/>
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white">Confirmar limpeza da análise</h3>
+                  <p className="text-sm text-gray-400 mt-1">Isso vai limpar o cenário carregado, os dados preenchidos, os resultados calculados e a prévia do laudo.</p>
+                </div>
+              </div>
+            </div>
+            <div className="p-5 flex flex-col sm:flex-row justify-end gap-3">
+              <button
+                type="button"
+                onClick={()=>setConfirmClearOpen(false)}
+                className="px-4 py-2 rounded-xl border border-[#2a3555] text-gray-300 hover:text-white hover:bg-[#1a2035] transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={limparDados}
+                className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-semibold transition-colors"
+              >
+                Limpar tela
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,266 +1,173 @@
 "use client";
-import GraficosProtecao from "@/components/laudo/graficos-protecao";
-import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, Button, Input, Label, Badge } from "@/components/ui";
-import { Ruler, Zap, Shield, ChevronDown, ChevronUp, Info } from "lucide-react";
+
+import { useMemo, useState } from "react";
+import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Label } from "@/components/ui";
 import NumericInput from "@/components/ui/numeric-input";
+import GraficosProtecao from "@/components/laudo/graficos-protecao";
+import {
+  NIVEIS,
+  NP_CONFIG,
+  NivelProtecao,
+  anguloProtecao,
+  numeroMinimoDescidas,
+  raioProtecaoAngulo,
+  raioProtecaoEsferaRolante,
+} from "@/lib/spda-norma";
+import { AlertTriangle, CheckCircle2, Ruler, Shield, Zap } from "lucide-react";
 
-// NBR 5419-3:2026 - Tabela 2 e 5 (source: norma, não internet)
-const NP_CONFIG = {
-  "I":   { esfera: 20, malha: "5×5",   distDesc: 10, angBoer: 25, cor: "text-red-500" },
-  "II":  { esfera: 30, malha: "10×10", distDesc: 15, angBoer: 35, cor: "text-orange-500" },
-  "III": { esfera: 45, malha: "15×15", distDesc: 20, angBoer: 45, cor: "text-yellow-500" },
-  "IV":  { esfera: 60, malha: "20×20", distDesc: 25, angBoer: 55, cor: "text-green-500" },
-} as const;
-
-type NP = keyof typeof NP_CONFIG;
-
-// Comparativo de sistemas - valores de mercado aproximados (não normativos)
-const SISTEMAS_PDA = [
-  {
-    nome: "Franklin (Para-raios de haste)",
-    descricao: "Para-raios tipo Franklin com haste elevada. Projeto e mão-de-obra especializada encarecem o sistema.",
-    vantagens: ["Proteção pontual eficaz", "Boa para estruturas pontuais e torres", "Norma consolidada"],
-    desvantagens: ["Custo mais alto por mastro e base reforçada", "Ângulo de proteção limitado por altura"],
-    custo_ref: "R$ 18.000 – R$ 80.000",
-    indicado: "Torres de telecomunicação, chaminés, edifícios altos",
-    norma: "NBR 5419-3:2026, §5.2.3, Tabela A.1",
-  },
-  {
-    nome: "Esfera Rolante",
-    descricao: "Método geométrico para estruturas complexas. Custo intermediário entre Franklin e Faraday.",
-    vantagens: ["Mais preciso para formas irregulares", "Menor número de captores que Faraday"],
-    desvantagens: ["Requer projeto técnico detalhado", "Mais complexo de executar"],
-    custo_ref: "R$ 8.000 – R$ 45.000",
-    indicado: "Estruturas complexas, saliências, NP I e II",
-    norma: "NBR 5419-3:2026, §5.2.2, Tabela 2",
-  },
-  {
-    nome: "Gaiola de Faraday",
-    descricao: "Malha de condutores sobre a cobertura. Solução mais econômica por usar condutores de cobre simples.",
-    vantagens: ["Menor custo por m²", "Alta confiabilidade", "Manutenção simples", "Normativo NBR 5419-3"],
-    desvantagens: ["Visualmente intrusivo", "Maior quantidade de material"],
-    custo_ref: "R$ 3.500 – R$ 18.000",
-    indicado: "Galpões industriais, residências, edificações simples",
-    norma: "NBR 5419-3:2026, §5.2",
-  },
-];
+function toNP(value?: string): NivelProtecao {
+  return NIVEIS.includes(value as NivelProtecao) ? (value as NivelProtecao) : "II";
+}
 
 export default function SpdaDimensionamento({ npRecomendado = "II" }: { npRecomendado?: string }) {
-  const [np, setNp] = useState<NP>((npRecomendado as NP) in NP_CONFIG ? (npRecomendado as NP) : "II");
-  const [perimetro, setPerimetro] = useState("");
-  const [altura, setAltura] = useState("");
-  const [resistencia, setResistencia] = useState("");
-  const [continuidade, setContinuidade] = useState("");
-  const [showMedicoes, setShowMedicoes] = useState(false);
-  const [showComparativo, setShowComparativo] = useState(false);
+  const [np, setNp] = useState<NivelProtecao>(toNP(npRecomendado));
+  const [comprimento, setComprimento] = useState("30");
+  const [largura, setLargura] = useState("18");
+  const [alturaReferencia, setAlturaReferencia] = useState("8");
+  const [comprimentoL, setComprimentoL] = useState("8");
+  const [meio, setMeio] = useState<"ar" | "solido">("ar");
+  const [temAnel, setTemAnel] = useState(false);
 
-  const cfg = NP_CONFIG[np as keyof typeof NP_CONFIG];
-  const per = parseFloat(perimetro) || 0;
-  const alt = parseFloat(altura) || 0;
+  const L = Number.parseFloat(comprimento) || 0;
+  const W = Number.parseFloat(largura) || 0;
+  const H = Number.parseFloat(alturaReferencia) || 0;
+  const l = Number.parseFloat(comprimentoL) || H || 0;
+  const cfg = NP_CONFIG[np];
+  const perimetro = 2 * (L + W);
+  const nDescidas = numeroMinimoDescidas(np, L, W);
+  const angulo = anguloProtecao(np, H);
+  const raioAngulo = raioProtecaoAngulo(np, H);
+  const raioEsfera = raioProtecaoEsferaRolante(np, H);
 
-  const nDescidas = per > 0 ? Math.max(2, Math.ceil(per / cfg.distDesc)) : null;
-  // Distância de segurança simplificada — NBR 5419-3:2026, Equação (5): s = ki × (kc/km) × l
-  const KI: Record<string, number> = { "I": 0.08, "II": 0.06, "III": 0.04, "IV": 0.02 };
-  const dseg = alt > 0 && nDescidas
-    ? parseFloat((KI[np] * (1 / (2 * nDescidas) / 1.0) * alt).toFixed(3))
-    : null;
+  const ki = { I: 0.08, II: 0.06, III: 0.04, IV: 0.04 }[np];
+  const km = meio === "ar" ? 1 : 0.5;
+  const kc = nDescidas <= 1 ? 1 : temAnel ? 0.66 / (2 * nDescidas) : 1 / (2 * nDescidas);
+  const distanciaSeguranca = ki * (kc / km) * l;
+
+  const resumo = useMemo(() => [
+    { label: "Raio da esfera rolante", value: `${cfg.raioEsferaM} m`, sub: "Tabela 2" },
+    { label: "Módulo máximo da malha", value: `${cfg.malhaM[0]} × ${cfg.malhaM[1]} m`, sub: "Tabela 2" },
+    { label: "Espaçamento entre descidas", value: `${cfg.distanciaDescidaM} m`, sub: "Tabela 5" },
+    { label: "Ângulo de proteção", value: angulo.aplicavel && angulo.anguloGraus !== null ? `${angulo.anguloGraus.toFixed(1)}°` : "Não aplicável", sub: "Figura 1" },
+  ], [cfg, angulo]);
 
   return (
-    <div className="space-y-4">
-      {/* NP Selector */}
+    <div className="space-y-5">
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Shield className="w-4 h-4 text-primary" /> Dimensionamento SPDA
+            <Shield className="w-4 h-4 text-primary" /> Dimensionamento normativo do SPDA
           </CardTitle>
-          <CardDescription>NBR 5419-3:2026 — Parâmetros por Nível de Proteção</CardDescription>
+          <CardDescription>
+            Parâmetros de captação, descidas e distância de segurança conforme ABNT NBR 5419-3:2026.
+          </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-5">
           <div>
-            <Label>Nível de Proteção (NP) recomendado pela análise de risco</Label>
+            <Label>Nível de Proteção do SPDA</Label>
             <div className="flex gap-2 mt-2 flex-wrap">
-              {(Object.keys(NP_CONFIG) as NP[]).map(n => (
-                <button key={n} type="button" onClick={() => setNp(n)}
+              {NIVEIS.map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => setNp(n)}
                   className={`px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${
-                    np === n ? "border-primary bg-primary/10 text-primary" : "border-border text-foreground-muted hover:border-border-secondary"
-                  }`}>
+                    np === n ? "text-white border-transparent" : "border-border text-foreground-muted hover:border-border-secondary"
+                  }`}
+                  style={np === n ? { background: NP_CONFIG[n].cor } : undefined}
+                >
                   NP {n}
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Parâmetros normativos */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {[
-              { label: "Raio esfera rolante", value: `${cfg.esfera} m`, sub: "Tabela 2" },
-              { label: "Malha captação", value: `${cfg.malha} m`, sub: "Tabela 2" },
-              { label: "Dist. entre descidas", value: `${cfg.distDesc} m`, sub: "Tabela 5" },
-              { label: "Ângulo de Boer", value: `${cfg.angBoer}°`, sub: "Tabela A.1" },
-            ].map(({ label, value, sub }) => (
-              <div key={label} className="p-3 rounded-lg border border-border bg-background-secondary">
-                <div className="text-xs text-foreground-muted">{label}</div>
-                <div className="text-lg font-bold text-primary mt-1">{value}</div>
-                <div className="text-[10px] text-foreground-muted">{sub}</div>
+            {resumo.map((item) => (
+              <div key={item.label} className="p-3 rounded-xl border border-border bg-background-secondary">
+                <div className="text-xs text-foreground-muted">{item.label}</div>
+                <div className="text-lg font-bold mt-1" style={{ color: cfg.cor }}>{item.value}</div>
+                <div className="text-[10px] text-foreground-muted">{item.sub}</div>
               </div>
             ))}
           </div>
 
-          {/* Cálculo com perímetro */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
-              <Label>Perímetro da estrutura (m)</Label>
-              <NumericInput value={perimetro} onChange={setPerimetro} unidade="m" placeholder="ex: 120" />
-              <p className="text-[10px] text-foreground-muted mt-1">Para planta retangular: P = 2×(L+W)</p>
+              <Label>Comprimento da estrutura</Label>
+              <NumericInput value={comprimento} onChange={setComprimento} unidade="m" placeholder="ex: 30" />
             </div>
             <div>
-              <Label>Altura da estrutura (m)</Label>
-              <NumericInput value={altura} onChange={setAltura} unidade="m" placeholder="ex: 15" />
+              <Label>Largura da estrutura</Label>
+              <NumericInput value={largura} onChange={setLargura} unidade="m" placeholder="ex: 18" />
+            </div>
+            <div>
+              <Label>H até a ponta do captor</Label>
+              <NumericInput value={alturaReferencia} onChange={setAlturaReferencia} unidade="m" placeholder="ex: 8" />
+              <p className="text-[10px] text-foreground-muted mt-1">Altura do plano de referência até a ponta do captor.</p>
+            </div>
+            <div>
+              <Label>Comprimento l para s</Label>
+              <NumericInput value={comprimentoL} onChange={setComprimentoL} unidade="m" placeholder="ex: 8" />
             </div>
           </div>
 
-          {(nDescidas !== null || dseg !== null) && (
-            <div className="p-4 rounded-lg bg-primary/5 border border-primary/20 space-y-2">
-              <div className="text-sm font-medium text-primary">Resultado do dimensionamento</div>
-              {nDescidas !== null && (
-                <div className="flex items-center gap-2 text-sm">
-                  <Ruler className="w-4 h-4 text-primary" />
-                  <span>Número mínimo de descidas: <strong>{nDescidas} condutores</strong></span>
-                </div>
-              )}
-              {dseg !== null && (
-                <div className="flex items-center gap-2 text-sm">
-                  <Zap className="w-4 h-4 text-primary" />
-                  <span>Distância de segurança simplificada: <strong>{dseg} m</strong></span>
-                </div>
-              )}
-              <p className="text-[10px] text-foreground-muted">
-                * NBR 5419-3:2026 §5.4.3.1 e Equação (5). Para estruturas acima de 60 m, verificar proteção lateral (§5.3.2.14.2).
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+            <div className="rounded-xl border border-border bg-background-secondary p-4">
+              <div className="flex items-center gap-2 text-sm font-semibold text-foreground mb-2">
+                <Ruler className="w-4 h-4 text-primary" /> Descidas
+              </div>
+              <div className="text-sm text-foreground-muted">Perímetro calculado</div>
+              <div className="text-2xl font-bold text-primary">{perimetro.toFixed(2)} m</div>
+              <div className="text-sm text-foreground-muted mt-2">Número mínimo de condutores</div>
+              <div className="text-2xl font-bold text-primary">{nDescidas}</div>
+              <p className="text-[11px] text-foreground-muted mt-2">
+                Mínimo de dois condutores e distribuição preferencialmente uniforme no perímetro.
               </p>
             </div>
-          )}
+
+            <div className="rounded-xl border border-border bg-background-secondary p-4">
+              <div className="flex items-center gap-2 text-sm font-semibold text-foreground mb-2">
+                <Zap className="w-4 h-4 text-primary" /> Distância de segurança
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <label className="flex items-center gap-2">
+                  <input type="radio" checked={meio === "ar"} onChange={() => setMeio("ar")} className="accent-primary" /> Ar
+                </label>
+                <label className="flex items-center gap-2">
+                  <input type="radio" checked={meio === "solido"} onChange={() => setMeio("solido")} className="accent-primary" /> Sólido
+                </label>
+                <label className="col-span-2 flex items-center gap-2 mt-1">
+                  <input type="checkbox" checked={temAnel} onChange={(e) => setTemAnel(e.target.checked)} className="accent-primary" /> considerar anel intermediário
+                </label>
+              </div>
+              <div className="text-sm text-foreground-muted mt-3">s = ki × (kc / km) × l</div>
+              <div className="text-2xl font-bold text-primary">{distanciaSeguranca.toFixed(3)} m</div>
+              <div className="text-[11px] text-foreground-muted mt-2">ki={ki}; kc={kc.toFixed(4)}; km={km}; l={l.toFixed(2)} m</div>
+            </div>
+
+            <div className="rounded-xl border border-border bg-background-secondary p-4">
+              <div className="flex items-center gap-2 text-sm font-semibold text-foreground mb-2">
+                {angulo.aplicavel ? <CheckCircle2 className="w-4 h-4 text-emerald-500" /> : <AlertTriangle className="w-4 h-4 text-amber-500" />}
+                Método do ângulo
+              </div>
+              {angulo.aplicavel && angulo.anguloGraus !== null ? (
+                <>
+                  <div className="text-sm text-foreground-muted">Raio pelo ângulo de proteção</div>
+                  <div className="text-2xl font-bold text-primary">{raioAngulo?.toFixed(2)} m</div>
+                  <div className="text-sm text-foreground-muted mt-2">Raio auxiliar pela esfera rolante para H</div>
+                  <div className="text-xl font-bold text-primary">{raioEsfera !== null ? `${raioEsfera.toFixed(2)} m` : "H > R"}</div>
+                </>
+              ) : (
+                <p className="text-sm text-amber-700 dark:text-amber-300">{angulo.motivo}</p>
+              )}
+              <Badge variant="outline" className="mt-3">Figura 1 e Tabela 2</Badge>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
-      {/* Gráficos de proteção */}
-      <GraficosProtecao np={np} alturaCaptor={parseFloat(altura) || 5} />
-
-      {/* Medições (opcional) */}
-      <Card>
-        <CardHeader>
-          <button className="flex items-center justify-between w-full" type="button" onClick={() => setShowMedicoes(!showMedicoes)}>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Zap className="w-4 h-4 text-primary" /> Medições de campo (opcional)
-            </CardTitle>
-            {showMedicoes ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-          </button>
-          <CardDescription>
-            Conforme NBR 5419-3:2026 §7.1.4 — medição de resistência de aterramento NÃO é requisito para eficácia do SPDA, porém pode ser registrada para documentação.
-          </CardDescription>
-        </CardHeader>
-        {showMedicoes && (
-          <CardContent className="space-y-4">
-            <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-start gap-2">
-              <Info className="w-4 h-4 shrink-0 mt-0.5" />
-              <span>NBR 5419-3:2026, §7.1.4: <em>"A medição da resistência de aterramento não é um requisito para verificar a eficácia de um SPDA."</em> Os campos abaixo são opcionais e apenas documentais.</span>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label>Resistência de aterramento medida (Ω)</Label>
-                <NumericInput value={resistencia} onChange={setResistencia} unidade="Ω" placeholder="ex: 4,5" />
-                <p className="text-[10px] text-foreground-muted mt-1">Método: queda de potencial (NBR 15749)</p>
-              </div>
-              <div>
-                <Label>Continuidade elétrica (Ω)</Label>
-                <NumericInput value={continuidade} onChange={setContinuidade} unidade="Ω" placeholder="ex: 0,05" />
-                <p className="text-[10px] text-foreground-muted mt-1">Entre pontos do SPDA (valores abaixo de 1 Ω são aceitáveis)</p>
-              </div>
-            </div>
-
-            {/* Eletrodo de aterramento */}
-            <div className="pt-2 border-t border-border">
-              <div className="text-xs font-medium text-foreground-muted mb-2">Eletrodo de aterramento — §5.4.4</div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <Label className="text-xs">Resistividade do solo ρ (Ω·m)</Label>
-                  <NumericInput value={""} onChange={() => {}} unidade="Ω·m" placeholder="ex: 100" />
-                  <p className="text-[10px] text-foreground-muted mt-1">
-                    Comprimento mín. eletrodo tipo A: calculado via Tabela 8
-                  </p>
-                </div>
-                <div className="flex items-end">
-                  <div className="p-2 rounded border border-border bg-background-secondary text-xs w-full">
-                    <div className="text-foreground-muted">Comprimento mín. l₁ (Tabela 8)</div>
-                    <div className="font-bold text-primary mt-1">Use endpoint POST /spda/eletrodo-tipo-a</div>
-                    <div className="text-[10px] text-foreground-muted">NBR 5419-3:2026 §5.4.4.1</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {resistencia && (
-              <div className={`p-3 rounded-lg border text-sm ${
-                parseFloat(resistencia) <= 10
-                  ? "bg-green-50 border-green-200 text-green-800"
-                  : parseFloat(resistencia) <= 25
-                  ? "bg-yellow-50 border-yellow-200 text-yellow-800"
-                  : "bg-red-50 border-red-200 text-red-800"
-              }`}>
-                Resistência: <strong>{resistencia} Ω</strong> —{" "}
-                {parseFloat(resistencia) <= 10 ? "✓ Adequada para a maioria das aplicações" :
-                 parseFloat(resistencia) <= 25 ? "⚠ Aceitável — avaliar melhorias" :
-                 "✗ Elevada — recomendado tratamento do solo ou eletrodos adicionais"}
-                <span className="block text-[10px] mt-1 opacity-70">Referência informativa: IEEE Std 142 / ABNT NBR 15749. Não há valor normativo obrigatório na NBR 5419-3:2026.</span>
-              </div>
-            )}
-          </CardContent>
-        )}
-      </Card>
-
-      {/* Comparativo de sistemas */}
-      <Card>
-        <CardHeader>
-          <button className="flex items-center justify-between w-full" type="button" onClick={() => setShowComparativo(!showComparativo)}>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Shield className="w-4 h-4 text-primary" /> Comparativo de sistemas PDA
-            </CardTitle>
-            {showComparativo ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-          </button>
-          <CardDescription>Gaiola de Faraday × Franklin × Esfera Rolante — indicação técnica e referência de mercado</CardDescription>
-        </CardHeader>
-        {showComparativo && (
-          <CardContent>
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-              {SISTEMAS_PDA.map((s) => (
-                <div key={s.nome} className="p-4 rounded-lg border border-border space-y-3">
-                  <div className="font-semibold text-sm">{s.nome}</div>
-                  <p className="text-xs text-foreground-muted">{s.descricao}</p>
-
-                  <div>
-                    <div className="text-[10px] font-medium text-green-600 mb-1">✓ Vantagens</div>
-                    {s.vantagens.map(v => <div key={v} className="text-xs text-foreground-muted">• {v}</div>)}
-                  </div>
-                  <div>
-                    <div className="text-[10px] font-medium text-red-500 mb-1">✗ Limitações</div>
-                    {s.desvantagens.map(v => <div key={v} className="text-xs text-foreground-muted">• {v}</div>)}
-                  </div>
-                  <div className="p-2 rounded bg-background-secondary">
-                    <div className="text-[10px] text-foreground-muted">Referência de custo (mercado BR)</div>
-                    <div className="text-sm font-semibold text-primary">{s.custo_ref}</div>
-                    <div className="text-[10px] text-foreground-muted mt-1">{s.indicado}</div>
-                  </div>
-                  <div className="text-[10px] text-foreground-muted border-t border-border pt-2">{s.norma}</div>
-                </div>
-              ))}
-            </div>
-            <p className="text-[10px] text-foreground-muted mt-3">
-              * Os três métodos são reconhecidos pela NBR 5419-3:2026 (§5.2). A escolha deve considerar geometria da estrutura, nível de proteção exigido e custo-benefício. Custos são referências de mercado 2025 e podem variar por região.
-            </p>
-          </CardContent>
-        )}
-      </Card>
+      <GraficosProtecao np={np} alturaCaptor={H || 2} />
     </div>
   );
 }

@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Prontuário de Instalações Elétricas - {{ dados.identificacao.condominio or 'Instalação' }}</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 2.5cm 2cm 2cm 2.5cm;
+      @bottom-center {
+        content: "Página " counter(page) " de " counter(pages);
+        font-size: 8pt;
+        color: #64748b;
+      }
+      @top-right {
+        content: "{{ dados.identificacao.condominio or 'PIE' }} - Prontuário de Instalações Elétricas";
+        font-size: 8pt;
+        color: #64748b;
+      }
+    }
+    @page :first { margin: 0; @top-right { content: ""; } @bottom-center { content: ""; } }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: "Segoe UI", "Liberation Sans", "DejaVu Sans", Arial, sans-serif;
+      font-size: 10pt;
+      line-height: 1.6;
+      color: #334155;
+      background: white;
+    }
+
+    /* Capa - mesmo padrão visual do memorial de análise de risco */
+    .capa {
+      page: first;
+      page-break-after: always;
+      height: 297mm;
+      width: 210mm;
+      background: white;
+      padding: 0;
+      position: relative;
+      border-left: 20pt solid #1e3a8a;
+      overflow: hidden;
+    }
+    .capa-conteudo {
+      position: absolute;
+      top: 3.2cm;
+      left: 3cm;
+      right: 2.4cm;
+      height: 14.5cm;
+    }
+    .capa-topo {
+      text-align: right;
+      letter-spacing: 3pt;
+      font-size: 9pt;
+      color: #94a3b8;
+      padding-bottom: 0.45cm;
+      border-bottom: 1pt solid #e2e8f0;
+      text-transform: uppercase;
+      font-weight: bold;
+    }
+    .capa-logo-area { text-align: left; margin-top: 1.2cm; min-height: 1.6cm; }
+    .capa-logo { max-width: 5.2cm; max-height: 2.4cm; }
+    .capa-titulo-principal { text-align: left; margin-top: 1.5cm; max-width: 15.2cm; }
+    .capa-titulo-principal h1 {
+      font-size: 30pt;
+      font-weight: 800;
+      color: #1e3a8a;
+      line-height: 1.05;
+      letter-spacing: -0.6px;
+      margin: 0;
+      border: 0;
+      padding: 0;
+      background: transparent;
+      box-shadow: none;
+      text-transform: uppercase;
+    }
+    .capa-titulo-principal h2 {
+      font-size: 13pt;
+      font-weight: 400;
+      color: #475569;
+      margin-top: 0;
+      margin-bottom: 0.35cm;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      border-bottom: 1pt solid #cbd5e1;
+      padding-bottom: 0.25cm;
+      display: block;
+    }
+    .capa-subtitulo {
+      font-size: 10pt;
+      color: #0ea5e9;
+      text-align: left;
+      margin-top: 0.55cm;
+      font-weight: bold;
+      text-transform: uppercase;
+      max-width: 14cm;
+    }
+    .capa-dados {
+      position: absolute;
+      left: 3cm;
+      right: 2.4cm;
+      bottom: 3.0cm;
+      background: #f8fafc;
+      padding: 0.75cm 0.9cm;
+      border-left: 4pt solid #0ea5e9;
+      border-radius: 0 8px 8px 0;
+    }
+    .capa-linha {
+      display: flex;
+      justify-content: space-between;
+      border-bottom: 1px dashed #cbd5e1;
+      padding: 0.3cm 0;
+      font-size: 9.5pt;
+    }
+    .capa-linha:last-child { border-bottom: none; }
+    .capa-linha .label { color: #64748b; text-transform: uppercase; font-size: 8pt; font-weight: bold; }
+    .capa-linha .valor { font-weight: 600; color: #0f172a; text-align: right; max-width: 60%; }
+    .capa-rodape {
+      position: absolute;
+      left: 3cm;
+      right: 2.4cm;
+      bottom: 1.5cm;
+      text-align: left;
+      font-size: 8pt;
+      color: #94a3b8;
+      padding-top: 0.35cm;
+      border-top: 1pt solid #e2e8f0;
+    }
+
+    /* Sumário */
+    .sumario { page-break-after: always; padding: 2cm 0; }
+    .sumario h2 {
+      font-size: 18pt;
+      font-weight: 800;
+      color: #1e3a8a;
+      border-bottom: 3pt solid #0ea5e9;
+      padding-bottom: 0.3cm;
+      margin-bottom: 1cm;
+      text-transform: uppercase;
+    }
+    .sumario-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 0.2cm 0;
+      border-bottom: 1px solid #f1f5f9;
+      font-size: 10.5pt;
+      color: #334155;
+      font-weight: 500;
+    }
+    .sumario-item.level2 {
+      padding-left: 1cm;
+      font-size: 9.5pt;
+      color: #64748b;
+      font-weight: 400;
+      border-bottom: 1px dashed #f1f5f9;
+    }
+
+    /* Conteúdo */
+    .section { margin-bottom: 1.5cm; }
+    h1 {
+      font-size: 12pt;
+      font-weight: bold;
+      color: #ffffff;
+      background-color: #1e3a8a;
+      padding: 0.3cm 0.5cm;
+      margin: 0.9cm 0 0.6cm;
+      page-break-after: avoid;
+      border-left: 6pt solid #0ea5e9;
+      border-radius: 0 4px 4px 0;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    h2 {
+      font-size: 11pt;
+      font-weight: 700;
+      color: #1e3a8a;
+      margin-bottom: 0.4cm;
+      margin-top: 0.8cm;
+      page-break-after: avoid;
+      border-bottom: 1.5pt solid #cbd5e1;
+      padding-bottom: 0.1cm;
+    }
+    h3 {
+      font-size: 10pt;
+      font-weight: 600;
+      color: #475569;
+      margin-bottom: 0.3cm;
+      margin-top: 0.5cm;
+    }
+    p { margin-bottom: 0.4cm; color: #334155; text-align: justify; }
+    ul { margin: 0.15cm 0 0.4cm 0.9cm; color: #334155; }
+    li { margin-bottom: 0.08cm; }
+
+    table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      font-size: 9pt;
+      margin: 0.5cm 0;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      overflow: hidden;
+      page-break-inside: auto;
+    }
+    th {
+      padding: 0.3cm 0.4cm;
+      text-align: left;
+      font-weight: 700;
+      color: #475569;
+      background: #eef2f7;
+      text-transform: uppercase;
+      font-size: 8pt;
+      letter-spacing: 0.5px;
+      border-bottom: 1px solid #e2e8f0;
+      vertical-align: top;
+    }
+    thead tr th,
+    table tr:first-child > th {
+      background: #1e3a8a;
+      color: #ffffff;
+      border-bottom: 0;
+    }
+    table tr:not(:first-child) > th {
+      color: #475569;
+      background: #eef2f7;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    td {
+      padding: 0.25cm 0.4cm;
+      border-bottom: 1px solid #e2e8f0;
+      color: #334155;
+      vertical-align: top;
+    }
+    tr:nth-child(even) td { background: #f8fafc; }
+    tr:last-child td { border-bottom: none; }
+    td.label {
+      width: 4.8cm;
+      color: #475569;
+      font-weight: 800;
+      font-size: 8pt;
+      text-transform: uppercase;
+      letter-spacing: 0.4pt;
+      background: #f8fafc;
+    }
+
+    .section-box {
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 0.55cm;
+      margin: 0.45cm 0 0.7cm;
+      background: #f8fafc;
+      page-break-inside: avoid;
+    }
+    .section-box h2 { margin-top: 0; }
+    .muted { color: #64748b; }
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6cm; }
+    .avoid-break { page-break-inside: avoid; }
+    .page-break { page-break-before: always; }
+
+    .badge {
+      display: inline-block;
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-size: 8.5pt;
+      font-weight: 800;
+      text-align: center;
+      white-space: nowrap;
+    }
+    .badge.ok { color: #15803d; background: #dcfce7; }
+    .badge.warn { color: #92400e; background: #fef3c7; }
+    .badge.bad { color: #b91c1c; background: #fee2e2; }
+
+    .resultado-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6cm; margin: 0.8cm 0; }
+    .resultado-card {
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 0.6cm;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+      background: #f8fafc;
+    }
+    .resultado-card::before { content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 4px; background: #0ea5e9; }
+    .resultado-card.atende { background: #f0fdf4; border-color: #bbf7d0; }
+    .resultado-card.atende::before { background: #22c55e; }
+    .resultado-card.nao-atende { background: #fef2f2; border-color: #fecaca; }
+    .resultado-card.nao-atende::before { background: #ef4444; }
+    .resultado-card.alerta { background: #fffbeb; border-color: #fde68a; }
+    .resultado-card.alerta::before { background: #f59e0b; }
+    .resultado-card .rc-label { font-size: 9pt; font-weight: bold; color: #475569; letter-spacing: 1px; text-transform: uppercase; }
+    .resultado-card .rc-valor { font-size: 18pt; font-weight: 800; color: #0f172a; margin: 0.25cm 0; }
+    .resultado-card .rc-ref { font-size: 8.5pt; color: #64748b; display: block; }
+
+    .conclusao-destaque { background: #fffbeb; border-left: 4px solid #f59e0b; padding: 0.5cm; margin: 0.5cm 0; font-weight: 500; color: #92400e; border-radius: 0 6px 6px 0; }
+    .conclusao-critico { background: #fef2f2; border-left: 4px solid #ef4444; padding: 0.5cm; margin: 0.5cm 0; font-weight: bold; color: #b91c1c; border-radius: 0 6px 6px 0; }
+    .conclusao-ok { background: #f0fdf4; border-left: 4px solid #22c55e; padding: 0.5cm; margin: 0.5cm 0; color: #15803d; font-weight: 500; border-radius: 0 6px 6px 0; }
+
+    .foto-grid { display: flex; flex-wrap: wrap; gap: 0.5cm; margin: 0.5cm 0; }
+    .foto-item { width: 8cm; background: white; padding: 0.25cm; border: 1px solid #e2e8f0; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); page-break-inside: avoid; }
+    .photo-placeholder { height: 4cm; border: 0.8pt dashed #94a3b8; background: #f8fafc; color: #64748b; display: flex; align-items: center; justify-content: center; font-size: 8pt; margin-bottom: 0.25cm; border-radius: 4px; }
+    .foto-img { width: 100%; height: 4.8cm; object-fit: cover; border: 1px solid #cbd5e1; border-radius: 4px; display: block; margin-bottom: 0.25cm; }
+    .foto-legenda { font-size: 8.5pt; color: #475569; margin-top: 0.15cm; }
+
+    .assinatura { margin-top: 3cm; text-align: center; page-break-inside: avoid; }
+    .assinatura-linha { width: 10cm; border-top: 1px solid #334155; margin: 0 auto 0.4cm; }
+    .assinatura-nome { font-weight: 800; font-size: 11pt; color: #0f172a; text-transform: uppercase; }
+    .assinatura-reg { font-size: 9.5pt; color: #475569; margin-top: 2px; }
+    .assinatura-titulo { font-size: 9pt; color: #94a3b8; margin-top: 2px; }
+  </style>
+</head>
+<body>
+  {% set fotos_anexadas = (dados.fotos or [])|selectattr("imagem")|list %}
+  <div class="capa">
+    <div class="capa-conteudo">
+      <div class="capa-topo">Prontuário NR-10 - Instalações Elétricas</div>
+      <div class="capa-logo-area">
+        {% if responsavel.logo_base64 %}<img class="capa-logo" src="{{ responsavel.logo_base64 }}" alt="Logo">{% endif %}
+      </div>
+      <div class="capa-titulo-principal">
+        <h2>Relatório Técnico Completo</h2>
+        <h1>Prontuário de Instalações Elétricas</h1>
+      </div>
+      <div class="capa-subtitulo">PIE - NR-10 | Documentação, inspeções, segurança e plano de ação</div>
+    </div>
+
+    <div class="capa-dados">
+      <div class="capa-linha"><span class="label">Empreendimento</span><span class="valor">{{ dados.identificacao.condominio or 'Não informado' }}</span></div>
+      <div class="capa-linha"><span class="label">CNPJ</span><span class="valor">{{ dados.identificacao.cnpj or 'Não informado' }}</span></div>
+      <div class="capa-linha"><span class="label">Endereço</span><span class="valor">{{ dados.identificacao.endereco or 'Não informado' }}</span></div>
+      <div class="capa-linha"><span class="label">Autoria Técnica</span><span class="valor">{{ first(dados.responsavel.nome, dados.identificacao.responsavelTecnico, responsavel.nome, 'Não informado') }}</span></div>
+      <div class="capa-linha"><span class="label">Registro Profissional</span><span class="valor">{{ first(dados.responsavel.crea, dados.identificacao.crea, responsavel.registro, 'Não informado') }}</span></div>
+      {% if first(dados.responsavel.art, responsavel.art) %}<div class="capa-linha"><span class="label">ART / RRT / TRT</span><span class="valor">{{ first(dados.responsavel.art, responsavel.art) }}</span></div>{% endif %}
+      <div class="capa-linha"><span class="label">Data de Emissão</span><span class="valor">{{ data_emissao }}</span></div>
+      <div class="capa-linha"><span class="label">Código de Rastreio</span><span class="valor">{{ numero_documento }}</span></div>
+    </div>
+
+    <div class="capa-rodape">
+      Documento gerado pelo sistema PDA NBR 5419 a partir das informações preenchidas no módulo PIE - Instalações Elétricas. Revisar tecnicamente antes da emissão oficial.
+    </div>
+  </div>
+
+  <div class="sumario">
+    <h2>Índice Analítico</h2>
+    {% set secs = [
+      ('1', 'Identificação do empreendimento'),
+      ('2', 'Introdução, base legal e objetivo'),
+      ('3', 'Documentação técnica, conformidade e inspeções'),
+      ('3.1', 'Documentação técnica disponível'),
+      ('3.2', 'Conformidade com NR-10'),
+      ('3.3', 'SPDA e aterramento'),
+      ('4', 'Avaliação dos quadros elétricos'),
+      ('5', 'Procedimentos, EPIs/EPCs, trabalhadores e ensaios'),
+      ('6', 'Áreas classificadas'),
+      ('7', 'Relatório técnico - checklist de áreas comuns'),
+      ('8', 'Análise técnica, recomendações e plano de ação'),
+      ('9', 'Conclusão')
+    ] %}
+    {% if fotos_anexadas %}
+      {% set secs = secs + [('10', 'Registro fotográfico'), ('11', 'Responsável técnico')] %}
+    {% else %}
+      {% set secs = secs + [('10', 'Responsável técnico')] %}
+    {% endif %}
+    {% for num, titulo in secs %}
+      <div class="sumario-item {% if '.' in num %}level2{% endif %}"><span>{{ num }}. {{ titulo }}</span></div>
+    {% endfor %}
+  </div>
+
+  <div class="section page-break">
+    <h1>1. Identificação do empreendimento</h1>
+    <table>
+      <tr><td class="label">Condomínio / empreendimento</td><td>{{ dados.identificacao.condominio or '' }}</td></tr>
+      <tr><td class="label">CNPJ</td><td>{{ dados.identificacao.cnpj or '' }}</td></tr>
+      <tr><td class="label">Endereço</td><td>{{ dados.identificacao.endereco or '' }}</td></tr>
+      <tr><td class="label">Responsável técnico informado</td><td>{{ dados.identificacao.responsavelTecnico or '' }}</td></tr>
+      <tr><td class="label">Registro informado</td><td>{{ dados.identificacao.crea or '' }}</td></tr>
+      <tr><td class="label">Data da inspeção</td><td>{{ dados.identificacao.data|fmt_date }}</td></tr>
+    </table>
+  </div>
+
+  <div class="section">
+    <h1>2. Introdução, base legal e objetivo</h1>
+    <p>O presente documento constitui o Prontuário das Instalações Elétricas, elaborado com o objetivo de reunir informações técnicas, administrativas e de segurança relacionadas às instalações elétricas do empreendimento.</p>
+    <p>Este relatório contempla inspeções, análises e verificações das condições operacionais e de segurança, visando garantir a integridade física dos trabalhadores, usuários e do patrimônio.</p>
+    <p>De acordo com o item 10.2.4 da NR-10, o Prontuário é obrigatório para estabelecimentos que possuam carga instalada superior a 75 kW.</p>
+    <ul>
+      <li>Atender aos requisitos da NR-10, incluindo itens 10.2.3 e 10.2.4.</li>
+      <li>Garantir a segurança das instalações elétricas.</li>
+      <li>Identificar não conformidades e propor ações corretivas e preventivas.</li>
+      <li>Assegurar conformidade com normas técnicas aplicáveis.</li>
+    </ul>
+  </div>
+
+  <div class="section">
+    <h1>3. Documentação técnica, conformidade e inspeções</h1>
+    <div class="two-col">
+      <div class="avoid-break">
+        <h2>3.1 Documentação técnica disponível</h2>
+        <table><tr><th>Documento</th><th>Situação</th></tr>{% for item in dados.documentacao %}<tr><td>{{ item.label }}</td><td><span class="badge {{ item.status|status_class }}">{{ item.status|status_label }}</span></td></tr>{% endfor %}</table>
+      </div>
+      <div class="avoid-break">
+        <h2>3.2 Conformidade com NR-10</h2>
+        <table><tr><th>Item</th><th>Atende</th></tr>{% for item in dados.conformidade %}<tr><td>{{ item.label }}</td><td><span class="badge {{ item.status|status_class }}">{{ item.status|status_label }}</span></td></tr>{% endfor %}</table>
+      </div>
+    </div>
+    <h2>3.3 SPDA e aterramento</h2>
+    <table><tr><th>Item</th><th>Situação</th></tr>{% for item in dados.spdaAterramento %}<tr><td>{{ item.label }}</td><td><span class="badge {{ item.status|status_class }}">{{ item.status|status_label }}</span></td></tr>{% endfor %}</table>
+  </div>
+
+  <div class="section page-break">
+    <h1>4. Avaliação dos quadros elétricos</h1>
+    {% for q in dados.quadros %}
+    <div class="section-box">
+      <h2>{{ q.nome or ('Quadro ' ~ loop.index) }}</h2>
+      <table>
+        <tr><th>Localização</th><td>{{ q.localizacao or '' }}</td><th>Tensão</th><td>{{ q.tensao or '' }}</td></tr>
+        <tr><th>Identificação de circuitos</th><td>{{ q.identificacaoCircuitos|status_label }}</td><th>Fechamento adequado</th><td>{{ q.fechamentoAdequado|status_label }}</td></tr>
+        <tr><th>Partes vivas expostas</th><td>{{ q.partesVivasExpostas|status_label }}</td><th>Sinalização</th><td>{{ q.sinalizacao|status_label }}</td></tr>
+        <tr><th>Disjuntores</th><td>{{ q.disjuntores|status_label }}</td><th>DR</th><td>{{ q.dr|status_label }}</td></tr>
+        <tr><th>DPS</th><td>{{ q.dps|status_label }}</td><th>Aterramento</th><td>{{ q.aterramento or '' }}</td></tr>
+        <tr><th>Umidade / infiltração</th><td>{{ q.umidade|status_label }}</td><th>Área molhada</th><td>{{ q.areaMolhada|status_label }}</td></tr>
+        <tr><th>Acesso restrito</th><td>{{ q.acessoRestrito|status_label }}</td><th>Estudo de arco elétrico</th><td>{{ q.estudoArco|status_label }}</td></tr>
+        <tr><th>Etiquetagem de risco</th><td>{{ q.etiquetagemArco|status_label }}</td><th>Grau de risco</th><td><span class="badge {{ q.grauRisco|status_class }}">{{ q.grauRisco|status_label }}</span></td></tr>
+        {% if q.observacoes %}<tr><th>Observações</th><td colspan="3">{{ q.observacoes }}</td></tr>{% endif %}
+      </table>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="section">
+    <h1>5. Procedimentos, EPIs/EPCs, trabalhadores e ensaios</h1>
+    <h2>Procedimentos operacionais</h2>
+    <table><tr><th>Procedimento</th><th>Existe</th><th>Aplicado</th></tr>{% for item in dados.procedimentos %}<tr><td>{{ item.label }}</td><td>{{ item.existe|bool_label }}</td><td>{{ item.aplicado|bool_label }}</td></tr>{% endfor %}</table>
+    <h2>EPCs e EPIs</h2>
+    <table><tr><th>Equipamento</th><th>Existe</th><th>Uso</th><th>Validade</th></tr>{% for item in dados.epis %}<tr><td>{{ item.label }}</td><td>{{ item.existe|bool_label }}</td><td>{{ item.uso|bool_label }}</td><td>{{ item.validade|bool_label }}</td></tr>{% endfor %}</table>
+    <h2>Qualificação dos trabalhadores</h2>
+    <table><tr><th>Quantidade de trabalhadores</th><td>{{ dados.trabalhadores.quantidade or '' }}</td></tr><tr><th>NR-10 Básico</th><td>{{ dados.trabalhadores.nr10Basico|status_label }}</td></tr><tr><th>NR-10 SEP</th><td>{{ dados.trabalhadores.nr10Sep|status_label }}</td></tr><tr><th>ASO válido</th><td>{{ dados.trabalhadores.asoValido|status_label }}</td></tr></table>
+    <h2>Ensaios e testes elétricos</h2>
+    <table><tr><th>Item</th><th>Situação</th></tr>{% for item in dados.ensaios %}<tr><td>{{ item.label }}</td><td><span class="badge {{ item.status|status_class }}">{{ item.status|status_label }}</span></td></tr>{% endfor %}</table>
+  </div>
+
+  <div class="section">
+    <h1>6. Áreas classificadas</h1>
+    <p><strong>Aplicável:</strong> {{ dados.areasClassificadas.aplicavel|bool_label }}</p>
+    {% if dados.areasClassificadas.detalhe %}<p><strong>Detalhamento:</strong> {{ dados.areasClassificadas.detalhe }}</p>{% endif %}
+  </div>
+
+  <div class="section">
+    <h1>7. Relatório técnico - checklist de áreas comuns</h1>
+    {% for secao in dados.relatorioTecnico %}
+    <div class="avoid-break">
+      <h2>{{ secao.titulo }}</h2>
+      <table><tr><th>Item</th><th>Situação</th></tr>{% for item in secao.itens %}<tr><td>{{ item.label }}</td><td><span class="badge {{ item.status|status_class }}">{{ item.status|status_label }}</span></td></tr>{% endfor %}</table>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="section page-break">
+    <h1>8. Análise técnica, recomendações e plano de ação</h1>
+    <h2>Não conformidades</h2>
+    <div class="section-box">{{ dados.analiseTecnica.irregularidades or 'Sem irregularidades descritas.' }}</div>
+    <p><strong>Classificação de risco:</strong> <span class="badge {{ dados.analiseTecnica.classificacaoRisco|status_class }}">{{ dados.analiseTecnica.classificacaoRisco|status_label }}</span></p>
+    <h2>Recomendações técnicas</h2>
+    <table><tr><th>Recomendação</th><th>Aplicável</th></tr>{% for item in dados.recomendacoes %}<tr><td>{{ item.label }}</td><td><span class="badge {{ item.status|status_class }}">{{ item.status|status_label }}</span></td></tr>{% endfor %}</table>
+    <h2>Plano de ação anual</h2>
+    <table><tr><th>Mês</th><th>Ação</th><th>Responsável</th><th>Status</th></tr>{% for item in dados.planoAcao %}<tr><td>{{ item.mes }}</td><td>{{ item.acao }}</td><td>{{ item.responsavel }}</td><td>{{ item.status|status_label }}</td></tr>{% endfor %}</table>
+  </div>
+
+  <div class="section">
+    <h1>9. Conclusão</h1>
+    <p>Com base nas inspeções realizadas, conclui-se que as instalações elétricas encontram-se:</p>
+    {% set conclusao_class = dados.conclusao|status_class %}
+    <div class="{% if conclusao_class == 'ok' %}conclusao-ok{% elif conclusao_class == 'bad' %}conclusao-critico{% else %}conclusao-destaque{% endif %}">
+      {{ dados.conclusao|status_label }}
+    </div>
+  </div>
+
+  {% if fotos_anexadas %}
+  <div class="section">
+    <h1>10. Registro fotográfico</h1>
+    <div class="foto-grid">
+      {% for foto in fotos_anexadas %}
+      <div class="foto-item">
+        <img class="foto-img" src="{{ foto.imagem }}" alt="{{ foto.titulo or ('Imagem ' ~ loop.index) }}">
+        <div class="foto-legenda"><strong>{{ foto.titulo or ('Imagem ' ~ loop.index) }}</strong></div>
+        {% if foto.nomeArquivo %}<div class="foto-legenda"><span class="muted">Arquivo:</span> {{ foto.nomeArquivo }}</div>{% endif %}
+        {% if foto.descricao %}<div class="foto-legenda"><span class="muted">Descrição:</span> {{ foto.descricao }}</div>{% endif %}
+        {% if foto.local %}<div class="foto-legenda"><span class="muted">Local:</span> {{ foto.local }}</div>{% endif %}
+        {% if foto.data %}<div class="foto-legenda"><span class="muted">Data:</span> {{ foto.data|fmt_date }}</div>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="section page-break">
+    <h1>{% if fotos_anexadas %}11{% else %}10{% endif %}. Responsável técnico</h1>
+    <table>
+      <tr><td class="label">Nome</td><td>{{ first(dados.responsavel.nome, dados.identificacao.responsavelTecnico, responsavel.nome) }}</td></tr>
+      <tr><td class="label">Registro</td><td>{{ first(dados.responsavel.crea, dados.identificacao.crea, responsavel.registro) }}</td></tr>
+      <tr><td class="label">ART/RRT/TRT</td><td>{{ first(dados.responsavel.art, responsavel.art) }}</td></tr>
+      <tr><td class="label">Empresa</td><td>{{ first(dados.responsavel.empresa, responsavel.empresa) }}</td></tr>
+      <tr><td class="label">Telefone</td><td>{{ first(dados.responsavel.telefone, responsavel.telefone) }}</td></tr>
+      <tr><td class="label">E-mail</td><td>{{ first(dados.responsavel.email, responsavel.email) }}</td></tr>
+      <tr><td class="label">Data</td><td>{{ first(dados.responsavel.data, responsavel.data)|fmt_date }}</td></tr>
+    </table>
+
+    <div class="assinatura">
+      <div class="assinatura-linha"></div>
+      <div class="assinatura-nome">{{ first(dados.responsavel.nome, dados.identificacao.responsavelTecnico, responsavel.nome, 'Responsável técnico') }}</div>
+      <div class="assinatura-reg">{{ first(dados.responsavel.crea, dados.identificacao.crea, responsavel.registro) }}</div>
+      {% if first(dados.responsavel.art, responsavel.art) %}<div class="assinatura-reg">ART/RRT/TRT: {{ first(dados.responsavel.art, responsavel.art) }}</div>{% endif %}
+      <div class="assinatura-titulo">Responsável técnico pelo Prontuário de Instalações Elétricas</div>
+    </div>
+  </div>
+</body>
+</html>

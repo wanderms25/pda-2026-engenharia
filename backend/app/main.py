@@ -29,6 +29,7 @@ from app.api.v1 import (
     pagina,
     projetos,
     spda,
+    pie,
 )
 from app.bootstrap import bootstrap_admin
 from app.config import settings
@@ -124,6 +125,12 @@ app.include_router(
     laudo_analise.router,
     prefix="/api/v1",
     tags=["Remediação de Laudo"],
+)
+
+app.include_router(
+    pie.router,
+    prefix="/api/v1",
+    tags=["Prontuário de Instalações Elétricas"],
 )
 
 # === Rotas protegidas por JWT ===

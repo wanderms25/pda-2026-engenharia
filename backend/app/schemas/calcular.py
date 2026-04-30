@@ -3,7 +3,9 @@ Schema para o endpoint /api/v1/calcular.
 Recebe o estado completo do formulário frontend e retorna todos os valores calculados.
 O frontend NÃO faz cálculos — apenas exibe o retorno deste endpoint.
 """
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
+
+from app.nbr5419.parte2_linhas import validar_uw_linha_calculo_completo
 
 
 class TrechoSLIn(BaseModel):
@@ -34,6 +36,15 @@ class LinhaIn(BaseModel):
     cld_cli: str = "AEREO_NAO_BLINDADO"  # CLD/CLI key (Tab. B.4)
     trechos: list[TrechoSLIn] = Field(default_factory=list)
     adj: EstAdjIn = Field(default_factory=EstAdjIn)  # Estrutura adjacente (NDJ)
+
+    @model_validator(mode="after")
+    def validar_tensoes_uw_trechos(self):
+        for trecho in self.trechos:
+            try:
+                validar_uw_linha_calculo_completo(trecho.uw_kv)
+            except ValueError as exc:
+                raise ValueError(f"Linha {self.id}, trecho {trecho.id}: {exc}") from exc
+        return self
 
 
 class ZonaIn(BaseModel):
@@ -68,6 +79,13 @@ class ZonaIn(BaseModel):
     habilitar_f: bool = True
     ft_sistema: float = 0.1
     zpr0a: bool = False              # equipamentos em ZPR0A (ativa FB)
+    # Probabilidades locais opcionais para adaptadores legados/multizona.
+    # Quando None, o motor usa os valores globais da estrutura.
+    pb: float | None = None
+    pta: float | None = None
+    ptu: str | None = None
+    peb: str | None = None
+
     # L4 — perdas econômicas (Anexo D, informativo)
     habilitar_l4: bool = False
     tipo_estrutura_l4: str = "USAR_TIPO_L1"  # USAR_TIPO_L1 | ou tipo da estrutura para L4

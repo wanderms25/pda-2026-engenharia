@@ -201,3 +201,16 @@ select option {
   background-color: hsl(var(--background));
   color: hsl(var(--foreground));
 }
+
+@layer base {
+  input[type="checkbox"],
+  input[type="radio"] {
+    accent-color: hsl(var(--primary));
+    color-scheme: light;
+  }
+
+  .dark input[type="checkbox"],
+  .dark input[type="radio"] {
+    color-scheme: dark;
+  }
+}

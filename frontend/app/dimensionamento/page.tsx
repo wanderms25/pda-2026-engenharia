@@ -23,8 +23,8 @@ export default function DimensionamentoPage() {
         <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
           Dimensionamento SPDA
         </h1>
-        <p className="text-sm text-foreground-muted mt-1">
-          Cálculo de perímetro, descidas, ângulo de proteção e planta interativa.
+        <p className="text-sm text-foreground-muted mt-1 max-w-3xl">
+          Dimensionamento de captação, malhas, descidas, distância de segurança e posicionamento dos para-raios em planta 2D/3D, usando somente os parâmetros da ABNT NBR 5419-3:2026.
         </p>
       </div>
       <SpdaDimensionamento npRecomendado="II" />

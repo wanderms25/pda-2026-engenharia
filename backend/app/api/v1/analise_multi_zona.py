@@ -1,21 +1,20 @@
 """
-Endpoint de cálculo de análise de risco MULTI-ZONA.
+Endpoint legado de análise de risco MULTI-ZONA.
 
-Permite dividir a estrutura em zonas de estudo (ZS) conforme NBR 5419-2:2026,
-Seção 6.7, e calcular os componentes de risco somados de todas as zonas.
+Mantém o contrato /api/v1/analise-risco/calcular-multi-zona, mas delega o
+cálculo para app.engine.calculo_completo.calcular_pda, evitando duplicidade
+normativa entre endpoints.
 """
+from __future__ import annotations
+
 from typing import Any
 
 from fastapi import APIRouter
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
-from app.engine.areas import DimensoesEstrutura, calcular_AD, calcular_AI, calcular_AL, calcular_AM
 from app.engine.avaliacao import avaliar_conformidade, exige_protecao
-from app.engine.eventos import ParametrosLinha, calcular_ND, calcular_NI, calcular_NL, calcular_NM
-from app.engine.perdas import EntradaPerdas, calcular_perdas_L1
-from app.engine.probabilidades import EntradaProbabilidades, calcular_todas_probabilidades
-from app.engine.frequencia_danos import calcular_frequencia_a_partir_de_probabilidades
-from app.engine.riscos import ComponentesRisco, EntradaComponentes, RiscosConsolidados, avaliar_riscos, calcular_componentes
+from app.engine.calculo_completo import calcular_pda
+from app.engine.riscos import RiscosConsolidados
 from app.nbr5419.enums import (
     AmbienteLinha,
     LocalizacaoEstrutura,
@@ -29,6 +28,17 @@ from app.nbr5419.enums import (
     TipoLinhaEletrica,
     TipoPiso,
 )
+from app.nbr5419.parte2_linhas import validar_uw_linha_calculo_completo
+from app.nbr5419.parte2_tabelas import (
+    FATOR_HZ,
+    FATOR_RF,
+    FATOR_RP,
+    FATOR_RT,
+    LF_L1_POR_ESTRUTURA,
+    PROBABILIDADE_PB,
+    PROBABILIDADE_PSPD,
+)
+from app.schemas.calcular import CalcRequest, EstAdjIn, EstruturaPDA, LinhaIn, TrechoSLIn, ZonaIn
 
 router = APIRouter()
 
@@ -46,11 +56,12 @@ class ZonaInput(BaseModel):
     numero_pessoas_total: int = Field(default=1, ge=1)
     horas_ano_presenca: float = Field(default=8760.0, ge=0, le=8760.0)
 
-    # Medidas de proteção por zona (podem ser diferentes)
+    # Medidas de proteção por zona (mantidas por compatibilidade do endpoint legado)
     spda_nivel: NivelProtecao = NivelProtecao.NENHUM
     dps_coordenados_nivel: NivelProtecao = NivelProtecao.NENHUM
     habilitar_f: bool = True
     ft_sistema: float = Field(default=0.1, gt=0)
+    zpr0a: bool = False
 
 
 class AnaliseMultiZonaRequest(BaseModel):
@@ -69,136 +80,144 @@ class AnaliseMultiZonaRequest(BaseModel):
 
     zonas: list[ZonaInput]
 
+    @field_validator("tensao_UW_kV")
+    @classmethod
+    def validar_uw(cls, value: float) -> float:
+        try:
+            return validar_uw_linha_calculo_completo(value)
+        except ValueError as exc:
+            raise ValueError(str(exc)) from exc
 
-@router.post("/analise-risco/calcular-multi-zona")
+
+def _tipo_linha_calc(tipo_ct: TipoLinhaEletrica) -> str:
+    """
+    O contrato legado usa CT (BT_SINAL/AT_COM_TRAFO), não ENERGIA/SINAL.
+    Mantém ENERGIA como padrão conservador para compatibilidade com o motor antigo.
+    """
+    return "ENERGIA"
+
+
+def _build_calc_request(req: AnaliseMultiZonaRequest) -> CalcRequest:
+    total_pessoas = max((z.numero_pessoas_total for z in req.zonas), default=1)
+    tipo_estrutura = req.tipo_estrutura.value
+
+    linha = LinhaIn(
+        id="L01",
+        nome="Linha principal",
+        tipo_linha=_tipo_linha_calc(req.tipo_linha),
+        ptu="NENHUMA",
+        peb="NENHUM",
+        cld_cli="AEREO_NAO_BLINDADO",
+        trechos=[
+            TrechoSLIn(
+                id="L01-SL01",
+                comprimento_m=req.comprimento_linha_m,
+                instalacao_ci=req.instalacao_linha.value,
+                tipo_ct=req.tipo_linha.value,
+                ambiente_ce=req.ambiente_linha.value,
+                blindagem_rs="AEREO_NAO_BLINDADO",
+                uw_kv=req.tensao_UW_kV,
+            )
+        ],
+        adj=EstAdjIn(),
+    )
+
+    zonas: list[ZonaIn] = []
+    for zona in req.zonas:
+        lf = LF_L1_POR_ESTRUTURA.get(req.tipo_estrutura, LF_L1_POR_ESTRUTURA[TipoEstrutura.OUTROS])
+        zonas.append(
+            ZonaIn(
+                id=zona.id,
+                nome=zona.nome,
+                nz=zona.numero_pessoas_zona,
+                tz_mode="h_ano",
+                tz_valor=zona.horas_ano_presenca,
+                rt=FATOR_RT[zona.tipo_piso],
+                rf=FATOR_RF[zona.risco_incendio],
+                rp=FATOR_RP[zona.providencias_incendio],
+                hz=FATOR_HZ[zona.perigo_especial],
+                lf_valor=lf,
+                lf_custom=True,
+                tem_lo=req.tipo_estrutura == TipoEstrutura.RISCO_EXPLOSAO,
+                pspd=PROBABILIDADE_PSPD[zona.dps_coordenados_nivel],
+                habilitar_f=zona.habilitar_f,
+                ft_sistema=zona.ft_sistema,
+                zpr0a=zona.zpr0a,
+                pb=PROBABILIDADE_PB[zona.spda_nivel],
+                pta=1.0,
+                peb=zona.dps_coordenados_nivel.value if zona.dps_coordenados_nivel != NivelProtecao.NENHUM else "NENHUM",
+            )
+        )
+
+    estrutura = EstruturaPDA(
+        L=req.dimensoes["L"],
+        W=req.dimensoes["W"],
+        H=req.dimensoes["H"],
+        NG=req.NG,
+        loc=req.localizacao.value,
+        pb=1.0,
+        pta=1.0,
+        nt=total_pessoas,
+        tipo_estrutura=tipo_estrutura,
+        tipo_construcao=TipoConstrucao.ALVENARIA_CONCRETO.value,
+    )
+    return CalcRequest(estrutura=estrutura, zonas=zonas, linhas=[linha])
+
+
+@router.post("/analise-risco/calcular-multi-zona", deprecated=True)
 async def calcular_multi_zona(req: AnaliseMultiZonaRequest) -> dict[str, Any]:
     """
-    Calcula a análise de risco para uma estrutura dividida em N zonas.
-
-    Conforme NBR 5419-2:2026, 6.9.3: "O risco total R da estrutura é a soma
-    dos componentes de risco aplicáveis para as várias zonas de estudo ZS".
-
-    Retorna:
-    - Componentes de risco consolidados (somados de todas as zonas)
-    - R1 e R3 totais
-    - Avaliação de conformidade
-    - Detalhamento por zona
+    Adaptador multizona legado para o motor central /calcular.
     """
-    # 1. Áreas e eventos globais (aplicam-se a todas as zonas)
-    dim = DimensoesEstrutura(
-        L=req.dimensoes["L"], W=req.dimensoes["W"], H=req.dimensoes["H"],
-    )
-    AD = calcular_AD(dim)
-    AM = calcular_AM(dim)
-    AL = calcular_AL(req.comprimento_linha_m)
-    AI = calcular_AI(req.comprimento_linha_m)
+    calc_req = _build_calc_request(req)
+    calc = calcular_pda(calc_req)
 
-    params_linha = ParametrosLinha(
-        comprimento_m=req.comprimento_linha_m,
-        instalacao=req.instalacao_linha,
-        tipo=req.tipo_linha,
-        ambiente=req.ambiente_linha,
-    )
-
-    ND = calcular_ND(req.NG, AD, req.localizacao)
-    NM = calcular_NM(req.NG, AM)
-    NL = calcular_NL(req.NG, AL, params_linha)
-    NI = calcular_NI(req.NG, AI, params_linha)
-
-    # 2. Para cada zona: calcula Px, Lx, componentes de risco
-    zonas_resultado: list[dict[str, Any]] = []
-    soma_componentes = {
-        "RA": 0.0, "RB": 0.0, "RC": 0.0, "RM": 0.0,
-        "RU": 0.0, "RV": 0.0, "RW": 0.0, "RZ": 0.0,
-    }
-    F_total = 0.0
-    zonas_fora_ft: list[str] = []
-
-    for zona in req.zonas:
-        # Probabilidades dessa zona (medidas de proteção específicas)
-        ent_prob = EntradaProbabilidades(
-            spda_nivel=zona.spda_nivel,
-            dps_coordenados_nivel=zona.dps_coordenados_nivel,
-            dps_classe_I_nivel=zona.dps_coordenados_nivel,
-            tipo_roteamento_linha="AEREO_NAO_BLINDADO",
-            tensao_UW_kV=req.tensao_UW_kV,
-        )
-        prob = calcular_todas_probabilidades(ent_prob)
-
-        # Perdas dessa zona
-        ent_perdas = EntradaPerdas(
-            tipo_estrutura=req.tipo_estrutura,
-            tipo_piso=zona.tipo_piso,
-            risco_incendio=zona.risco_incendio,
-            providencias_incendio=zona.providencias_incendio,
-            perigo_especial=zona.perigo_especial,
-            tipo_construcao=zona.tipo_construcao,
-            numero_pessoas_zona=zona.numero_pessoas_zona,
-            numero_pessoas_total=zona.numero_pessoas_total,
-            horas_ano_presenca=zona.horas_ano_presenca,
-        )
-        perdas = calcular_perdas_L1(ent_perdas)
-
-        # Componentes de risco da zona
-        entrada = EntradaComponentes(
-            ND=ND, NM=NM, NL=NL, NI=NI, NDJ=0,
-            PA=prob.PA, PB=prob.PB, PC=prob.PC, PM=prob.PM,
-            PU=prob.PU, PV=prob.PV, PW=prob.PW, PZ=prob.PZ,
-            LA=perdas.LA, LB=perdas.LB, LC=perdas.LC, LM=perdas.LM,
-            LU=perdas.LU, LV=perdas.LV, LW=perdas.LW, LZ=perdas.LZ,
-        )
-        comp_zona = calcular_componentes(entrada)
-
-        # Frequência de danos da zona (Seção 7)
-        freq_zona = calcular_frequencia_a_partir_de_probabilidades(
-            ND=ND, NM=NM, NL=NL, NI=NI, NDJ=0, prob=prob,
-        )
-        F_zona = freq_zona.F_total if zona.habilitar_f else 0.0
-        if zona.habilitar_f:
-            F_total += F_zona
-            if F_zona > zona.ft_sistema:
-                zonas_fora_ft.append(f"{zona.nome}: F={F_zona:.3e} > FT={zona.ft_sistema:.3e}")
-
-        # Acumula no total
-        for k in soma_componentes:
-            soma_componentes[k] += getattr(comp_zona, k)
-
-        zonas_resultado.append({
-            "id": zona.id,
-            "nome": zona.nome,
-            "componentes": comp_zona.resumo(),
-            "R1_parcial": (
-                comp_zona.RA + comp_zona.RB + comp_zona.RC
-                + comp_zona.RM + comp_zona.RU + comp_zona.RV
-                + comp_zona.RW + comp_zona.RZ
-            ),
-            "F": F_zona,
-            "FT": zona.ft_sistema,
-        })
-
-    # 3. Risco total = soma dos componentes
-    componentes_total = ComponentesRisco(**soma_componentes)
-    riscos_base = avaliar_riscos(componentes_total, False, False)
-    FT_global = min((z.ft_sistema for z in req.zonas if z.habilitar_f), default=0.1)
-    F_atende = len(zonas_fora_ft) == 0
     riscos_total = RiscosConsolidados(
-        R1=riscos_base.R1, R3=riscos_base.R3, R4=riscos_base.R4,
-        F=F_total, FT=FT_global,
-        detalhes={"F": F_total, "F_global": F_total, "FT": FT_global, "FT_global": FT_global, "F_atende": F_atende, "zonas_fora_ft": zonas_fora_ft},
+        R1=calc.R1_global,
+        R3=calc.R3_global,
+        R4=calc.R4_global,
+        F=calc.F_global,
+        FT=calc.FT_global,
+        detalhes={"F_atende": calc.F_atende, "zonas_fora_ft": calc.zonas_fora_ft},
     )
     avaliacao = avaliar_conformidade(riscos_total)
 
+    zonas_resultado: list[dict[str, Any]] = []
+    for zin, zout in zip(calc_req.zonas, calc.zonas):
+        zonas_resultado.append({
+            "id": zout.id,
+            "nome": zout.nome,
+            "componentes": {
+                "RA": zout.RA, "RB": zout.RB, "RC": zout.RC, "RM": zout.RM,
+                "RU": zout.RU, "RV": zout.RV, "RW": zout.RW, "RZ": zout.RZ,
+            },
+            "R1_parcial": zout.R1,
+            "R3_parcial": zout.R3,
+            "F": zout.F,
+            "FT": zin.ft_sistema,
+            "linhas_contrib": [lc.model_dump() for lc in zout.linhas_contrib],
+        })
+
     return {
         "nome_projeto": req.nome_projeto,
-        "areas_m2": {"AD": AD, "AM": AM, "AL": AL, "AI": AI},
-        "numeros_eventos": {"ND": ND, "NM": NM, "NL": NL, "NI": NI},
-        "componentes_totais": componentes_total.resumo(),
-        "R1_total": riscos_total.R1,
-        "R3_total": riscos_total.R3,
-        "F_total": F_total,
-        "FT_global": FT_global,
-        "F_atende": F_atende,
-        "zonas_fora_ft": zonas_fora_ft,
+        "areas_m2": {"AD": calc.AD, "AM": calc.AM, "AL": calc.AL, "AI": calc.AI},
+        "numeros_eventos": {
+            "ND": calc.ND,
+            "NM": calc.NM,
+            "NL": sum(l.NL_total for l in calc.linhas),
+            "NI": sum(l.NI_total for l in calc.linhas),
+            "NDJ": sum(l.NDJ for l in calc.linhas),
+        },
+        "componentes_totais": {
+            "RA": calc.RA_g, "RB": calc.RB_g, "RC": calc.RC_g, "RM": calc.RM_g,
+            "RU": calc.RU_g, "RV": calc.RV_g, "RW": calc.RW_g, "RZ": calc.RZ_g,
+        },
+        "R1_total": calc.R1_global,
+        "R3_total": calc.R3_global,
+        "F_total": calc.F_global,
+        "FT_global": calc.FT_global,
+        "F_atende": calc.F_atende,
+        "zonas_fora_ft": calc.zonas_fora_ft,
         "zonas": zonas_resultado,
         "avaliacao": [
             {
@@ -212,5 +231,6 @@ async def calcular_multi_zona(req: AnaliseMultiZonaRequest) -> dict[str, Any]:
             for r in avaliacao
         ],
         "exige_protecao": exige_protecao(avaliacao),
-        "referencia_normativa": "NBR 5419-2:2026, Seção 6.7 a 6.9",
+        "referencia_normativa": "NBR 5419-2:2026, Seções 6.7 a 6.9 e Seção 7",
+        "calc_unificado": calc.model_dump(),
     }

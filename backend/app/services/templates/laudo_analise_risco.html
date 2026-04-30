@@ -288,6 +288,27 @@
     /* Recomendações */
     .rec-item { display: flex; gap: 0.4cm; margin-bottom: 0.4cm; background: #f0f9ff; padding: 0.3cm 0.5cm; border-radius: 6px; border-left: 3px solid #0ea5e9; }
     .rec-num { font-weight: 900; color: #0ea5e9; flex-shrink: 0; font-size: 12pt; line-height: 1; }
+    .plano-box { border: 1px solid #fed7aa; background: #fff7ed; border-radius: 10px; padding: 0.55cm; margin: 0.45cm 0; page-break-inside: avoid; }
+    .plano-box.aprovado { border-color: #bbf7d0; background: #f0fdf4; }
+    .plano-title { font-size: 12pt; color: #9a3412; font-weight: 900; text-transform: uppercase; margin-bottom: 0.15cm; }
+    .plano-box.aprovado .plano-title { color: #15803d; }
+    .plano-resumo { color: #475569; font-size: 9.5pt; margin-bottom: 0.35cm; }
+    .plano-param-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.22cm; margin: 0.35cm 0; }
+    .plano-param { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 6px; padding: 0.22cm; }
+    .plano-param .k { font-size: 7.5pt; color: #64748b; text-transform: uppercase; font-weight: 700; }
+    .plano-param .v { font-size: 10pt; color: #1e3a8a; font-weight: 900; margin-top: 2pt; }
+    .acao-box { border: 1px solid #e2e8f0; border-radius: 7px; padding: 0.35cm; margin: 0.28cm 0; background: #ffffff; page-break-inside: avoid; }
+    .acao-top { display: flex; align-items: center; gap: 0.2cm; margin-bottom: 0.16cm; }
+    .prio { font-size: 7.5pt; font-weight: 900; text-transform: uppercase; padding: 2px 6px; border-radius: 4px; display: inline-block; }
+    .prio-obrigatoria { background: #fee2e2; color: #b91c1c; }
+    .prio-alta { background: #ffedd5; color: #c2410c; }
+    .prio-media { background: #dbeafe; color: #1d4ed8; }
+    .prio-monitoramento { background: #dcfce7; color: #15803d; }
+    .acao-cat { font-size: 9.8pt; color: #0f172a; font-weight: 900; }
+    .acao-text { color: #334155; font-size: 9.2pt; margin: 0.1cm 0; }
+    .acao-ref { color: #1e3a8a; font-size: 8.2pt; font-weight: 600; }
+    .dominantes { margin: 0.25cm 0; }
+    .dominante-chip { display: inline-block; border: 1px solid #cbd5e1; background: #f8fafc; border-radius: 12px; padding: 2px 8px; margin: 2px; font-size: 8pt; color: #334155; }
 
     /* Conclusão destaque */
     .conclusao-destaque { background: #fffbeb; border-left: 4px solid #f59e0b; padding: 0.5cm; margin: 0.5cm 0; font-weight: 500; color: #92400e; border-radius: 0 6px 6px 0; }
@@ -426,7 +447,8 @@
     ("16","Perdas Econômicas — R4"),
     ("17","Linhas Externas — Eventos Calculados"),
     ("18","Painel de Resultados Gerais"),
-    ("19","Parecer Técnico Conclusivo"),
+    ("19","Plano de Adequação para Aprovação"),
+    ("20","Parecer Técnico Conclusivo"),
   ] %}
   {% for num, titulo in secs %}
     <div class="sumario-item {% if '.' in num %}level2{% endif %}">
@@ -1031,7 +1053,49 @@ RZ4 = Σ[NI × PZ × LZ4]  |  PZ já incorpora PSPD × PLI × CLI</div>
 
 
 <div class="section page-break">
-  <h1 class="sec">19. Parecer Técnico Conclusivo</h1>
+  <h1 class="sec">19. Plano de Adequação para Aprovação</h1>
+  <p>Esta seção traduz o resultado da análise de risco em ações técnicas para que o sistema possa ser aprovado. As ações devem ser implantadas e a análise deve ser recalculada até que os indicadores obrigatórios atendam aos limites toleráveis.</p>
+
+  <div class="plano-box {{ 'aprovado' if plano_aprovacao.aprovado else '' }}">
+    <div class="plano-title">{{ plano_aprovacao.titulo }}</div>
+    <div class="plano-resumo">{{ plano_aprovacao.resumo }}</div>
+    <div class="plano-param-grid">
+      <div class="plano-param"><div class="k">NP recomendado</div><div class="v">NP {{ plano_aprovacao.np_recomendado }}</div></div>
+      <div class="plano-param"><div class="k">Método inicial</div><div class="v">{{ plano_aprovacao.metodo }}</div></div>
+      <div class="plano-param"><div class="k">Esfera / malha</div><div class="v">R={{ plano_aprovacao.raio_esfera }} m | {{ plano_aprovacao.malha }}</div></div>
+      <div class="plano-param"><div class="k">Descidas mínimas</div><div class="v">{{ plano_aprovacao.descidas_minimas }} | dist. {{ plano_aprovacao.distancia_descidas }} m</div></div>
+    </div>
+
+    {% if plano_aprovacao.dominantes and plano_aprovacao.dominantes|length > 0 %}
+    <div class="dominantes">
+      {% for d in plano_aprovacao.dominantes %}
+      <span class="dominante-chip"><strong>{{ d.codigo }}</strong> {{ "%.3e"|format(d.valor) }} · {{ "%.1f"|format(d.percentual_r1) }}% do R1</span>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+
+  {% for acao in plano_aprovacao.acoes %}
+  <div class="acao-box">
+    <div class="acao-top"><span class="prio prio-{{ acao.prioridade_class|default('media') }}">{{ acao.prioridade }}</span><span class="acao-cat">{{ acao.categoria }}</span></div>
+    <div class="acao-text"><strong>Ação:</strong> {{ acao.acao }}</div>
+    <div class="acao-text"><strong>Justificativa:</strong> {{ acao.justificativa }}</div>
+    <div class="acao-text"><strong>Efeito esperado:</strong> {{ acao.efeito }}</div>
+    <div class="acao-ref">Referência normativa: {{ acao.referencia }}</div>
+  </div>
+  {% endfor %}
+
+  {% if plano_aprovacao.observacoes and plano_aprovacao.observacoes|length > 0 %}
+  <div class="formula-list">
+    {% for obs in plano_aprovacao.observacoes %}
+    - {{ obs }}
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+
+<div class="section page-break">
+  <h1 class="sec">20. Parecer Técnico Conclusivo</h1>
   <p>A partir do escrutínio numérico e da comparação dos resultados contra a tábua de tolerância da <strong>ABNT NBR 5419-2:2026</strong>, emite-se a seguinte posição técnica acerca da conformidade desta obra:</p>
 
   <table class="data" style="margin-bottom:1cm;">

@@ -153,7 +153,8 @@ PROBABILIDADE_PEB: dict[NivelProtecao, float] = {
 # da linha e características de roteamento. Valores aproximados da norma.
 # =============================================================================
 # Tabela B.8 — PLD: linhas não blindadas têm PLD=1 para qualquer UW
-# Chaves extras 0.35/0.5 adicionadas pois UW_OPT do frontend inclui esses valores
+# Tabela B.8 já possui colunas 0,35 e 0,5 kV para PLD.
+# A consulta normativa exata fica centralizada em parte2_linhas.py.
 PROBABILIDADE_PLD = {
     # Não blindada (aérea ou subterrânea, blindagem não interligada): PLD=1 para qualquer UW
     ("AEREO_NAO_BLINDADO",      0.35): 1.00, ("AEREO_NAO_BLINDADO",      0.5): 1.00,
@@ -182,16 +183,14 @@ PROBABILIDADE_PLD = {
 }
 
 # Tabela B.9 — PLI: probabilidade por tipo de linha e tensão UW
-# Para UW < 1 kV a norma não tabela PLI — usar 1 (pior caso conservador)
-# Chave = (tipo_linha, uw_kv): "ENERGIA" ou "SINAL" (Tab. B.9, Parte 2)
+# A Tabela B.9 não possui colunas 0,35 e 0,5 kV.
+# Chave = (tipo_linha, uw_kv): "ENERGIA" ou "SINAL".
 PROBABILIDADE_PLI = {
-    # Linhas elétricas de ENERGIA (BT e AT) — Tabela B.9, linha 1
-    ("ENERGIA", 0.35): 1.0,  ("ENERGIA", 0.5): 1.0,
+    # Linhas elétricas de ENERGIA — Tabela B.9
     ("ENERGIA", 1.0):  1.0,  ("ENERGIA", 1.5): 0.60,
     ("ENERGIA", 2.5):  0.30, ("ENERGIA", 4.0): 0.16,
     ("ENERGIA", 6.0):  0.10,
-    # Linhas elétricas de SINAL — Tabela B.9, linha 2
-    ("SINAL", 0.35): 1.0,  ("SINAL", 0.5): 1.0,
+    # Linhas elétricas de SINAL — Tabela B.9
     ("SINAL", 1.0):  1.0,  ("SINAL", 1.5): 0.50,
     ("SINAL", 2.5):  0.20, ("SINAL", 4.0): 0.08,
     ("SINAL", 6.0):  0.04,

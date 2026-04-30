@@ -14,6 +14,7 @@ import {
   ShieldCheck,
   ClipboardList,
   FileText,
+  FileCheck2,
   Zap,
   Layers,
   Shield,
@@ -35,6 +36,7 @@ export const navigation = [
   { name: "Zonas de Estudo", href: "/zonas", icon: Layers },
   { name: "Dimensionamento", href: "/dimensionamento", icon: Ruler },
   { name: "Laudo de Inspeção", href: "/laudo", icon: ClipboardList },
+  { name: "PIE - Instalações Elétricas", href: "/prontuario-instalacoes-eletricas", icon: FileCheck2 },
   { name: "Relatórios", href: "/relatorios", icon: FileText },
 ];
 

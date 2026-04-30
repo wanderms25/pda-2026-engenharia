@@ -5,11 +5,21 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, X, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getCurrentUser } from "@/lib/api";
+import { getFeatureFlags } from "@/lib/feature-flags";
 import { navigation } from "./sidebar";
 
 export function MobileNav() {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
+  const flags = typeof window !== "undefined" ? getFeatureFlags() : [];
+  const user = typeof window !== "undefined" ? getCurrentUser() : null;
+  const items = user?.role === "ADMIN"
+    ? navigation
+    : navigation.filter((item) => {
+        const flag = flags.find((f) => f.href === item.href);
+        return !flag || flag.habilitado;
+      });
 
   // Fecha o drawer quando navegar
   useEffect(() => {
@@ -80,7 +90,7 @@ export function MobileNav() {
 
             {/* Nav items */}
             <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-              {navigation.map((item) => {
+              {items.map((item) => {
                 const Icon = item.icon;
                 const isActive =
                   item.href === "/"
